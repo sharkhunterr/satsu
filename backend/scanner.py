@@ -131,109 +131,110 @@ def _four_point_transform(image: np.ndarray, pts: np.ndarray) -> np.ndarray:
 RESCALED_HEIGHT = 500.0
 
 
+def _extract_quads(binary_image, rectangles):
+    """Find 4-point convex quads with near-90 degree angles in a binary image."""
+    contours, _ = cv2.findContours(
+        binary_image, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE
+    )
+
+    for cnt in contours:
+        peri = cv2.arcLength(cnt, True)
+        approx = cv2.approxPolyDP(cnt, 0.02 * peri, True)
+
+        if (len(approx) == 4
+                and abs(cv2.contourArea(approx)) > 1000
+                and cv2.isContourConvex(approx)):
+            pts = approx.reshape(4, 2)
+            max_cos = 0
+            for j in range(2, 5):
+                cos = abs(_cos_angle(
+                    pts[j % 4], pts[j - 2], pts[j - 1]
+                ))
+                max_cos = max(max_cos, cos)
+
+            if max_cos < 0.4:
+                rectangles.append(pts)
+
+
 def _find_rectangles(image):
     """Find all rectangular 4-point contours in the image.
-    Searches across all 3 color channels with multiple threshold levels
-    (SwiftCamScanner / OpenCV squares.cpp approach).
 
-    Uses multiple Canny parameter sets and threshold levels for robustness
-    across different lighting and contrast conditions.
+    Searches across BGR + grayscale channels with adaptive Canny edge
+    detection, morphological closing, and multiple threshold levels for
+    robust detection of documents on low-contrast backgrounds.
     """
     rectangles = []
-    blurred = cv2.GaussianBlur(image, (11, 11), 0)
 
-    for c in range(3):  # B, G, R channels
-        channel = blurred[:, :, c]
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-        # Level 0: sensitive Canny (good for high-contrast edges)
-        # Level 1: stronger Canny (good for close-up photos)
-        # Level 2-4: direct thresholds at different brightness levels
-        threshold_levels = 5
-        for level in range(threshold_levels):
-            if level == 0:
-                gray = cv2.Canny(channel, 10, 20, apertureSize=3)
-                gray = cv2.dilate(gray, None)
-            elif level == 1:
-                gray = cv2.Canny(channel, 50, 150, apertureSize=3)
-                gray = cv2.dilate(gray, None)
-            else:
-                # Direct thresholds at 33%, 50%, 66% brightness
-                thresh_val = (level - 1) * 255 // (threshold_levels - 1)
-                _, gray = cv2.threshold(
-                    channel, thresh_val, 255, cv2.THRESH_BINARY
-                )
+    # Channels: B, G, R, grayscale
+    channels = [image[:, :, c] for c in range(3)]
+    channels.append(gray)
 
-            contours, _ = cv2.findContours(
-                gray, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE
+    morph_k = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+
+    for channel in channels:
+        blurred = cv2.GaussianBlur(channel, (11, 11), 0)
+
+        # Adaptive Canny thresholds based on image median
+        median = float(np.median(channel))
+        canny_params = [
+            (10, 20),                                          # very sensitive
+            (50, 150),                                         # standard
+            (int(max(1, 0.33 * median)),
+             int(min(255, 1.33 * median))),                    # adaptive
+        ]
+
+        for low, high in canny_params:
+            edges = cv2.Canny(blurred, low, high, apertureSize=3)
+            # Morphological close to connect broken edge segments
+            closed = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, morph_k, iterations=2)
+            closed = cv2.dilate(closed, None)
+            _extract_quads(closed, rectangles)
+
+        # Direct threshold levels at 25%, 50%, 75% brightness
+        for thresh_val in [64, 128, 192]:
+            _, binary = cv2.threshold(
+                blurred, thresh_val, 255, cv2.THRESH_BINARY
             )
-
-            for cnt in contours:
-                peri = cv2.arcLength(cnt, True)
-                approx = cv2.approxPolyDP(cnt, 0.02 * peri, True)
-
-                if (len(approx) == 4
-                        and abs(cv2.contourArea(approx)) > 1000
-                        and cv2.isContourConvex(approx)):
-                    pts = approx.reshape(4, 2)
-                    max_cos = 0
-                    for j in range(2, 5):
-                        cos = abs(_cos_angle(
-                            pts[j % 4], pts[j - 2], pts[j - 1]
-                        ))
-                        max_cos = max(max_cos, cos)
-
-                    # Relaxed from 0.3 to 0.4 for slightly skewed documents
-                    if max_cos < 0.4:
-                        rectangles.append(pts)
+            _extract_quads(binary, rectangles)
 
     return rectangles
 
 
 def _get_largest_rectangle(rectangles, min_area_ratio, img_area):
-    """Pick the largest rectangle that covers at least min_area_ratio of image."""
+    """Pick the largest rectangle between min_area_ratio and 95% of image.
+
+    Rectangles covering >95% are rejected as false positives (image boundary).
+    """
     if not rectangles:
         return None
 
+    max_area = img_area * 0.95
     best = None
     best_area = 0
 
     for rect in rectangles:
         br = cv2.boundingRect(rect)
         area = br[2] * br[3]
-        if area > best_area and area >= img_area * min_area_ratio:
+        if area > best_area and area >= img_area * min_area_ratio and area <= max_area:
             best_area = area
             best = rect
 
     return best
 
 
-def _detect_document(small):
-    """Detect document in a downscaled image. Returns 4 ordered points or None."""
-    sh, sw = small.shape[:2]
-    img_area = sh * sw
+def _try_contour_quad(contours, img_area, min_ratio=0.10, max_ratio=0.95):
+    """Try to extract a 4-point quad from the largest contours.
 
-    # SwiftCamScanner approach: multi-channel multi-threshold rectangle detection
-    rectangles = _find_rectangles(small)
-    quad = _get_largest_rectangle(rectangles, 0.15, img_area)
-
-    if quad is not None:
-        return _order_points(quad)
-
-    # Fallback: color segmentation for high-contrast cases (receipt on dark bg)
-    gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
-    hsv = cv2.cvtColor(small, cv2.COLOR_BGR2HSV)
-    v = hsv[:, :, 2]
-    _, paper = cv2.threshold(v, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    k = cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7))
-    paper = cv2.morphologyEx(paper, cv2.MORPH_CLOSE, k, iterations=3)
-    paper = cv2.morphologyEx(paper, cv2.MORPH_OPEN, k, iterations=2)
-
-    contours, _ = cv2.findContours(paper, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    Both the contour area AND the bounding rect of the resulting quad
+    must fall within [min_ratio, max_ratio] of the image area.
+    """
     contours = sorted(contours, key=cv2.contourArea, reverse=True)
 
     for c in contours[:5]:
         area = cv2.contourArea(c)
-        if area < img_area * 0.10 or area > img_area * 0.95:
+        if area < img_area * min_ratio or area > img_area * max_ratio:
             continue
         hull = cv2.convexHull(c)
         peri = cv2.arcLength(hull, True)
@@ -242,9 +243,110 @@ def _detect_document(small):
         for eps in np.arange(0.01, 0.10, 0.005):
             approx = cv2.approxPolyDP(hull, eps * peri, True)
             if len(approx) == 4 and cv2.isContourConvex(approx):
+                # Also verify bounding rect doesn't span the full image
+                br = cv2.boundingRect(approx)
+                br_area = br[2] * br[3]
+                if br_area > img_area * max_ratio:
+                    break  # larger eps won't help, try next contour
                 return _order_points(approx.reshape(4, 2))
-
     return None
+
+
+def _detect_document(small):
+    """Detect document in a downscaled image. Returns 4 ordered points or None."""
+    sh, sw = small.shape[:2]
+    img_area = sh * sw
+
+    # Primary: multi-channel multi-threshold rectangle detection
+    rectangles = _find_rectangles(small)
+    quad = _get_largest_rectangle(rectangles, 0.12, img_area)
+
+    if quad is not None:
+        return _order_points(quad)
+
+    gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+
+    # Fallback 1: bilateral filter preserves edges while smoothing textures,
+    # then very sensitive Canny + aggressive morphological closing to connect
+    # broken edge segments. Effective for white paper on light backgrounds.
+    bilateral = cv2.bilateralFilter(gray, 11, 75, 75)
+    edges = cv2.Canny(bilateral, 5, 15, apertureSize=3)
+    k = cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7))
+    closed = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, k, iterations=5)
+
+    contours, _ = cv2.findContours(
+        closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+    )
+    result = _try_contour_quad(contours, img_area)
+    if result is not None:
+        return result
+
+    # Fallback 2: color segmentation via OTSU on HSV V channel
+    hsv = cv2.cvtColor(small, cv2.COLOR_BGR2HSV)
+    v = hsv[:, :, 2]
+    _, paper = cv2.threshold(v, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    k = cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7))
+    paper = cv2.morphologyEx(paper, cv2.MORPH_CLOSE, k, iterations=3)
+    paper = cv2.morphologyEx(paper, cv2.MORPH_OPEN, k, iterations=2)
+
+    contours, _ = cv2.findContours(
+        paper, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+    )
+    result = _try_contour_quad(contours, img_area)
+    if result is not None:
+        return result
+
+    # Fallback 3: LAB B-channel (blue-yellow axis) can differentiate
+    # white paper from yellowish wood/desk surfaces
+    lab = cv2.cvtColor(small, cv2.COLOR_BGR2LAB)
+    b_ch = lab[:, :, 2]  # B channel: low = blue, high = yellow
+    _, lab_bin = cv2.threshold(b_ch, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    k = cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7))
+    lab_bin = cv2.morphologyEx(lab_bin, cv2.MORPH_CLOSE, k, iterations=3)
+    lab_bin = cv2.morphologyEx(lab_bin, cv2.MORPH_OPEN, k, iterations=2)
+
+    contours, _ = cv2.findContours(
+        lab_bin, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+    )
+    result = _try_contour_quad(contours, img_area)
+    if result is not None:
+        return result
+
+    # Fallback 4: corner-based background contrast.  Samples the image
+    # corners (likely desk/background), computes per-pixel color distance
+    # in LAB space, then segments paper from background.  A border strip
+    # is zeroed so the contour cannot hug the image edges — this handles
+    # half-sheets and close-up shots where the paper nearly fills the frame.
+    lab_f = lab.astype(np.float32)
+    cs = max(10, min(sh, sw) // 15)
+    corners_lab = [
+        lab_f[0:cs, 0:cs],
+        lab_f[0:cs, sw - cs:sw],
+        lab_f[sh - cs:sh, 0:cs],
+        lab_f[sh - cs:sh, sw - cs:sw],
+    ]
+    corner_means = [np.mean(c.reshape(-1, 3), axis=0) for c in corners_lab]
+    bg_mean = np.median(corner_means, axis=0)
+
+    diff = np.sqrt(np.sum((lab_f - bg_mean) ** 2, axis=2))
+    diff_u8 = np.clip(diff, 0, 255).astype(np.uint8)
+    _, mask = cv2.threshold(diff_u8, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+    k = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, k, iterations=3)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, k, iterations=1)
+
+    # Zero a thin border so contours cannot touch image edges
+    border = max(3, min(sh, sw) // 50)
+    mask[:border, :] = 0
+    mask[sh - border:, :] = 0
+    mask[:, :border] = 0
+    mask[:, sw - border:] = 0
+
+    contours, _ = cv2.findContours(
+        mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+    )
+    return _try_contour_quad(contours, img_area, max_ratio=0.98)
 
 
 # ---------------------------------------------------------------------------
@@ -268,26 +370,54 @@ def _step_auto_crop(image: np.ndarray, opts: dict) -> np.ndarray:
 
 
 def _step_deskew(image: np.ndarray, opts: dict) -> np.ndarray:
-    """Step 2 -- Deskew via minAreaRect rotation."""
+    """Step 2 -- Deskew via Hough line detection.
+
+    Uses probabilistic Hough lines to find dominant text/edge angles,
+    which is more reliable than minAreaRect on OTSU-thresholded images
+    (the old approach was noisy on uncropped photos with background).
+    """
     max_angle = opts.get("max_angle", 15)
 
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    h_img, w_img = image.shape[:2]
 
-    coords = cv2.findNonZero(thresh)
-    if coords is None or len(coords) < 100:
+    # Use Canny edge detection — more targeted than full OTSU threshold
+    edges = cv2.Canny(gray, 50, 150, apertureSize=3)
+
+    # Hough lines to find dominant angles
+    lines = cv2.HoughLinesP(
+        edges, 1, np.pi / 180, threshold=100,
+        minLineLength=w_img // 8, maxLineGap=20
+    )
+
+    if lines is None or len(lines) < 3:
         return image
 
-    rect = cv2.minAreaRect(coords)
-    (_, (w_r, h_r), angle) = rect
+    # Collect angles of detected lines
+    angles = []
+    for line in lines:
+        x1, y1, x2, y2 = line[0]
+        dx, dy = x2 - x1, y2 - y1
+        if abs(dx) < 1:
+            continue
+        angle_deg = math.degrees(math.atan2(dy, dx))
+        # Normalize to [-45, 45] range (text lines should be near-horizontal)
+        if angle_deg > 45:
+            angle_deg -= 90
+        elif angle_deg < -45:
+            angle_deg += 90
+        if abs(angle_deg) <= max_angle:
+            angles.append(angle_deg)
 
-    if w_r < h_r:
-        angle = angle + 90
-
-    if abs(angle) > max_angle or abs(angle) < 0.3:
+    if not angles:
         return image
 
-    (h_img, w_img) = image.shape[:2]
+    # Use median angle for robustness against outliers
+    angle = float(np.median(angles))
+
+    if abs(angle) < 0.3 or abs(angle) > max_angle:
+        return image
+
     center = (w_img // 2, h_img // 2)
     matrix = cv2.getRotationMatrix2D(center, angle, 1.0)
 
