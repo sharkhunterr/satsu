@@ -1,0 +1,14 @@
+services:
+  espscancam:
+    build: .
+    ports:
+      - "8400:8400"
+    volumes:
+      - espscancam-data:/data
+    environment:
+      - TZ=Europe/Paris
+      - ESPSCANCAM_LOG_LEVEL=INFO
+    restart: unless-stopped
+
+volumes:
+  espscancam-data:

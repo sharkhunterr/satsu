@@ -1,0 +1,80 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>ESPScanCam</Name>
+  <Repository>ghcr.io/espscancam/espscancam:latest</Repository>
+  <Registry>https://ghcr.io/espscancam/espscancam</Registry>
+  <Branch>
+    <Tag>latest</Tag>
+    <TagDescription>Latest stable release</TagDescription>
+  </Branch>
+  <Network>bridge</Network>
+  <Shell>bash</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/espscancam/espscancam/issues</Support>
+  <Project>https://github.com/espscancam/espscancam</Project>
+  <Overview>
+    ESPScanCam is a self-hosted document scanning system designed for homelab environments. It combines ESP32-CAM hardware capture, smartphone camera capture via the browser, and traditional file upload into a unified scanning workflow. Documents are processed through a configurable OpenCV pipeline with adjustable profiles for deskewing, cropping, contrast enhancement, and format conversion. A mobile-first responsive web UI provides real-time WebSocket updates on scan progress and processing status. Processed documents can be exported to multiple backends including local storage, Paperless-NGX, WebDAV, Google Drive, or SMB network shares. Ideal for digitizing paper documents in a privacy-respecting, self-hosted setup.
+  </Overview>
+  <Category>Productivity Tools</Category>
+  <WebUI>http://[IP]:[PORT:8400]</WebUI>
+  <TemplateURL>https://github.com/espscancam/espscancam/blob/main/unraid-template.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/espscancam/espscancam/main/docs/assets/icon.png</Icon>
+  <ExtraParams/>
+  <PostArgs/>
+  <Description>Self-hosted document scanning system. Capture via ESP32-CAM hardware, smartphone camera, or file upload. OpenCV processing pipeline with configurable profiles. Export to local storage, Paperless-NGX, WebDAV, Google Drive, or SMB.</Description>
+  <Config
+    Name="WebUI Port"
+    Target="8400"
+    Default="8400"
+    Mode="tcp"
+    Description="Port for the ESPScanCam web interface."
+    Type="Port"
+    Display="always"
+    Required="true"
+    Mask="false"
+  >8400</Config>
+  <Config
+    Name="Data Directory"
+    Target="/data"
+    Default="/mnt/user/appdata/espscancam"
+    Mode="rw"
+    Description="Persistent storage for scanned documents, configuration, and database."
+    Type="Path"
+    Display="always"
+    Required="true"
+    Mask="false"
+  >/mnt/user/appdata/espscancam</Config>
+  <Config
+    Name="ESPSCANCAM_PORT"
+    Target="ESPSCANCAM_PORT"
+    Default="8400"
+    Mode=""
+    Description="Internal port the application listens on. Should match the container port mapping."
+    Type="Variable"
+    Display="always"
+    Required="false"
+    Mask="false"
+  >8400</Config>
+  <Config
+    Name="ESPSCANCAM_LOG_LEVEL"
+    Target="ESPSCANCAM_LOG_LEVEL"
+    Default="INFO"
+    Mode=""
+    Description="Application log level. Options: DEBUG, INFO, WARNING, ERROR, CRITICAL."
+    Type="Variable"
+    Display="always"
+    Required="false"
+    Mask="false"
+  >INFO</Config>
+  <Config
+    Name="TZ"
+    Target="TZ"
+    Default="America/New_York"
+    Mode=""
+    Description="Timezone for the container (e.g. America/New_York, Europe/London, Asia/Tokyo)."
+    Type="Variable"
+    Display="always"
+    Required="false"
+    Mask="false"
+  >America/New_York</Config>
+</Container>
