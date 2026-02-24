@@ -183,6 +183,13 @@ async def init_db() -> None:
             await db.execute("ALTER TABLE batches ADD COLUMN device_info TEXT DEFAULT ''")
             await db.commit()
 
+        # Migration: add crop_info column to pages if missing
+        cursor = await db.execute("PRAGMA table_info(pages)")
+        page_columns = {row[1] for row in await cursor.fetchall()}
+        if "crop_info" not in page_columns:
+            await db.execute("ALTER TABLE pages ADD COLUMN crop_info TEXT DEFAULT ''")
+            await db.commit()
+
         # Seed default profiles if none exist
         cursor = await db.execute("SELECT COUNT(*) FROM profiles")
         row = await cursor.fetchone()

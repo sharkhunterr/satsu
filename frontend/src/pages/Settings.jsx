@@ -64,14 +64,14 @@ const DEFAULT_CONFIG = {
 }
 
 const PIPELINE_STEPS = [
-  { key: 'auto_crop', label: 'Auto-crop' },
-  { key: 'deskew', label: 'Deskew' },
-  { key: 'denoise', label: 'Denoise' },
-  { key: 'clahe', label: 'CLAHE' },
-  { key: 'sharpen', label: 'Sharpen' },
-  { key: 'white_balance', label: 'White Balance' },
-  { key: 'bw_mode', label: 'B&W Mode' },
-  { key: 'output', label: 'Output' },
+  { key: 'auto_crop', label: 'Auto-crop', description: 'Detects document edges and applies perspective correction to produce a flat, rectangular image.' },
+  { key: 'deskew', label: 'Deskew', description: 'Straightens tilted scans by detecting dominant text/edge angles using Hough lines.' },
+  { key: 'denoise', label: 'Denoise', description: 'Reduces image noise with a light Gaussian blur. Useful for noisy phone cameras.' },
+  { key: 'clahe', label: 'CLAHE', description: 'Contrast Limited Adaptive Histogram Equalization — enhances local contrast to make faded text more readable.' },
+  { key: 'sharpen', label: 'Sharpen', description: 'Applies unsharp mask sharpening to make text edges crisper.' },
+  { key: 'white_balance', label: 'White Balance', description: 'Normalizes paper illumination so the background becomes uniformly white, removing shadows and lighting gradients.' },
+  { key: 'bw_mode', label: 'Color Mode', description: 'Controls the output color space: keep original colors, convert to grayscale, or pure black & white for text documents.' },
+  { key: 'output', label: 'Output', description: 'Controls the final output format, compression quality, and resolution.' },
 ]
 
 const STORAGE_TYPES = [
@@ -115,8 +115,8 @@ function makeDefaultProfile() {
       denoise: { enabled: false, strength: 10 },
       clahe: { enabled: false, clip_limit: 2.0, grid_size: 8 },
       sharpen: { enabled: false, amount: 1.0 },
-      white_balance: { enabled: false },
-      bw_mode: { enabled: false, method: 'adaptive', block_size: 11, constant: 2 },
+      white_balance: { enabled: false, strength: 75 },
+      bw_mode: { enabled: true, mode: 'color', method: 'adaptive', block_size: 21, constant: 10 },
       output: { enabled: true, format: 'pdf', quality: 85, dpi: 300 },
     },
     storage: { enabled: false, backends: [] },
@@ -903,19 +903,31 @@ export default function Settings() {
 
               {PIPELINE_STEPS.map((step) => {
                 const stepData = profileDraft.steps?.[step.key] || {}
-                const enabled = stepData.enabled ?? false
+                const isColorMode = step.key === 'bw_mode'
+                const enabled = isColorMode ? true : (stepData.enabled ?? false)
                 return (
                   <div key={step.key} style={styles.pipelineStep}>
-                    <label style={styles.toggleRow}>
-                      <span style={{ fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--text-sm)' }}>
+                    {isColorMode ? (
+                      <div style={{ fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--text-sm)' }}>
                         {step.label}
-                      </span>
-                      <input
-                        type="checkbox"
-                        checked={enabled}
-                        onChange={(e) => updateProfileStep(step.key, 'enabled', e.target.checked)}
-                      />
-                    </label>
+                      </div>
+                    ) : (
+                      <label style={styles.toggleRow}>
+                        <span style={{ fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--text-sm)' }}>
+                          {step.label}
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={enabled}
+                          onChange={(e) => updateProfileStep(step.key, 'enabled', e.target.checked)}
+                        />
+                      </label>
+                    )}
+                    {step.description && (
+                      <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginTop: 'var(--space-1)' }}>
+                        {step.description}
+                      </div>
+                    )}
 
                     {enabled && renderStepParams(step.key, stepData)}
                   </div>
@@ -1008,6 +1020,7 @@ export default function Settings() {
         return (
           <div className="form-group" style={{ marginTop: 'var(--space-2)', marginBottom: 0 }}>
             <label className="form-label">Sensitivity: {stepData.sensitivity ?? 50}</label>
+            <span className="form-hint">How aggressively the algorithm searches for document edges. Higher values detect fainter edges but may produce false positives.</span>
             <input
               type="range"
               min={0}
@@ -1017,13 +1030,14 @@ export default function Settings() {
               onChange={(e) => updateProfileStep(stepKey, 'sensitivity', Number(e.target.value))}
               style={{ width: '100%' }}
             />
-            <div style={styles.rangeLabels}><span>0</span><span>100</span></div>
+            <div style={styles.rangeLabels}><span>0 (conservative)</span><span>100 (aggressive)</span></div>
           </div>
         )
       case 'deskew':
         return (
           <div className="form-group" style={{ marginTop: 'var(--space-2)', marginBottom: 0 }}>
             <label className="form-label">Max Angle: {stepData.max_angle ?? 15}&deg;</label>
+            <span className="form-hint">Maximum rotation angle allowed for straightening. Skew beyond this limit is ignored to avoid over-correction.</span>
             <input
               type="range"
               min={0}
@@ -1040,6 +1054,7 @@ export default function Settings() {
         return (
           <div className="form-group" style={{ marginTop: 'var(--space-2)', marginBottom: 0 }}>
             <label className="form-label">Strength: {stepData.strength ?? 10}</label>
+            <span className="form-hint">Blur kernel size. Higher values remove more noise but also reduce fine detail and text sharpness.</span>
             <input
               type="range"
               min={0}
@@ -1049,7 +1064,7 @@ export default function Settings() {
               onChange={(e) => updateProfileStep(stepKey, 'strength', Number(e.target.value))}
               style={{ width: '100%' }}
             />
-            <div style={styles.rangeLabels}><span>0</span><span>30</span></div>
+            <div style={styles.rangeLabels}><span>0 (off)</span><span>30 (heavy)</span></div>
           </div>
         )
       case 'clahe':
@@ -1057,6 +1072,7 @@ export default function Settings() {
           <div style={{ marginTop: 'var(--space-2)' }}>
             <div className="form-group" style={{ marginBottom: 'var(--space-2)' }}>
               <label className="form-label">Clip Limit: {stepData.clip_limit ?? 2.0}</label>
+              <span className="form-hint">Controls the contrast amplification limit. Higher values produce stronger contrast but can amplify noise.</span>
               <input
                 type="range"
                 min={0.5}
@@ -1066,10 +1082,11 @@ export default function Settings() {
                 onChange={(e) => updateProfileStep(stepKey, 'clip_limit', Number(e.target.value))}
                 style={{ width: '100%' }}
               />
-              <div style={styles.rangeLabels}><span>0.5</span><span>10</span></div>
+              <div style={styles.rangeLabels}><span>0.5 (subtle)</span><span>10 (strong)</span></div>
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label className="form-label">Grid Size: {stepData.grid_size ?? 8}</label>
+              <span className="form-hint">Number of tiles for local contrast computation. Smaller grids adapt to finer regions, larger grids give smoother results.</span>
               <input
                 type="range"
                 min={2}
@@ -1079,7 +1096,7 @@ export default function Settings() {
                 onChange={(e) => updateProfileStep(stepKey, 'grid_size', Number(e.target.value))}
                 style={{ width: '100%' }}
               />
-              <div style={styles.rangeLabels}><span>2</span><span>16</span></div>
+              <div style={styles.rangeLabels}><span>2 (fine)</span><span>16 (coarse)</span></div>
             </div>
           </div>
         )
@@ -1087,6 +1104,7 @@ export default function Settings() {
         return (
           <div className="form-group" style={{ marginTop: 'var(--space-2)', marginBottom: 0 }}>
             <label className="form-label">Amount: {stepData.amount ?? 1.0}</label>
+            <span className="form-hint">Sharpening intensity (unsharp mask). Values above 2.0 can create visible halos around text edges.</span>
             <input
               type="range"
               min={0}
@@ -1096,52 +1114,93 @@ export default function Settings() {
               onChange={(e) => updateProfileStep(stepKey, 'amount', Number(e.target.value))}
               style={{ width: '100%' }}
             />
-            <div style={styles.rangeLabels}><span>0</span><span>5</span></div>
+            <div style={styles.rangeLabels}><span>0 (off)</span><span>5 (extreme)</span></div>
           </div>
         )
       case 'white_balance':
-        return null // Toggle only, no extra params
+        return (
+          <div className="form-group" style={{ marginTop: 'var(--space-2)', marginBottom: 0 }}>
+            <label className="form-label">Strength: {stepData.strength ?? 75}%</label>
+            <span className="form-hint">Blend between original image and fully normalized paper. Lower values preserve light-colored text and images; higher values produce whiter, more uniform paper.</span>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={stepData.strength ?? 75}
+              onChange={(e) => updateProfileStep(stepKey, 'strength', Number(e.target.value))}
+              style={{ width: '100%' }}
+            />
+            <div style={styles.rangeLabels}><span>0% (original)</span><span>100% (full whitening)</span></div>
+          </div>
+        )
       case 'bw_mode':
         return (
           <div style={{ marginTop: 'var(--space-2)' }}>
             <div className="form-group" style={{ marginBottom: 'var(--space-2)' }}>
-              <label className="form-label">Method</label>
+              <label className="form-label">Mode</label>
               <select
                 className="form-select"
-                value={stepData.method ?? 'adaptive'}
-                onChange={(e) => updateProfileStep(stepKey, 'method', e.target.value)}
+                value={stepData.mode ?? (stepData.enabled === false ? 'color' : 'bw')}
+                onChange={(e) => {
+                  updateProfileStep(stepKey, 'mode', e.target.value)
+                  updateProfileStep(stepKey, 'enabled', true)
+                }}
               >
-                <option value="adaptive">Adaptive</option>
-                <option value="otsu">Otsu</option>
-                <option value="simple">Simple</option>
+                <option value="color">Color (original)</option>
+                <option value="grayscale">Grayscale</option>
+                <option value="bw">Black & White</option>
               </select>
             </div>
-            <div className="form-group" style={{ marginBottom: 'var(--space-2)' }}>
-              <label className="form-label">Block Size: {stepData.block_size ?? 11}</label>
-              <input
-                type="range"
-                min={3}
-                max={51}
-                step={2}
-                value={stepData.block_size ?? 11}
-                onChange={(e) => updateProfileStep(stepKey, 'block_size', Number(e.target.value))}
-                style={{ width: '100%' }}
-              />
-              <div style={styles.rangeLabels}><span>3</span><span>51</span></div>
-            </div>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Constant: {stepData.constant ?? 2}</label>
-              <input
-                type="range"
-                min={0}
-                max={20}
-                step={1}
-                value={stepData.constant ?? 2}
-                onChange={(e) => updateProfileStep(stepKey, 'constant', Number(e.target.value))}
-                style={{ width: '100%' }}
-              />
-              <div style={styles.rangeLabels}><span>0</span><span>20</span></div>
-            </div>
+            {(stepData.mode ?? (stepData.enabled === false ? 'color' : 'bw')) === 'bw' && (
+              <>
+                <div className="form-group" style={{ marginBottom: 'var(--space-2)' }}>
+                  <label className="form-label">Method</label>
+                  <span className="form-hint">Adaptive works best for most documents. Otsu is simpler but struggles with uneven lighting. Simple uses a fixed threshold.</span>
+                  <select
+                    className="form-select"
+                    value={stepData.method ?? 'adaptive'}
+                    onChange={(e) => updateProfileStep(stepKey, 'method', e.target.value)}
+                  >
+                    <option value="adaptive">Adaptive</option>
+                    <option value="otsu">Otsu</option>
+                    <option value="simple">Simple</option>
+                  </select>
+                </div>
+                {(stepData.method ?? 'adaptive') === 'adaptive' && (
+                  <>
+                    <div className="form-group" style={{ marginBottom: 'var(--space-2)' }}>
+                      <label className="form-label">Block Size: {stepData.block_size ?? 21}</label>
+                      <span className="form-hint">Size of the local neighborhood used for threshold calculation. Larger blocks handle gradients better but can lose fine detail.</span>
+                      <input
+                        type="range"
+                        min={3}
+                        max={51}
+                        step={2}
+                        value={stepData.block_size ?? 21}
+                        onChange={(e) => updateProfileStep(stepKey, 'block_size', Number(e.target.value))}
+                        style={{ width: '100%' }}
+                      />
+                      <div style={styles.rangeLabels}><span>3</span><span>51</span></div>
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Constant: {stepData.constant ?? 10}</label>
+                      <span className="form-hint">Value subtracted from the local mean. Higher values make more pixels white, useful for faded text. Lower values keep more detail but may add noise.</span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={20}
+                        step={1}
+                        value={stepData.constant ?? 10}
+                        onChange={(e) => updateProfileStep(stepKey, 'constant', Number(e.target.value))}
+                        style={{ width: '100%' }}
+                      />
+                      <div style={styles.rangeLabels}><span>0 (more detail)</span><span>20 (cleaner)</span></div>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
           </div>
         )
       case 'output':
@@ -1149,6 +1208,7 @@ export default function Settings() {
           <div style={{ marginTop: 'var(--space-2)' }}>
             <div className="form-group" style={{ marginBottom: 'var(--space-2)' }}>
               <label className="form-label">Format</label>
+              <span className="form-hint">PDF is recommended for multi-page documents. JPEG for photos, PNG for lossless quality.</span>
               <select
                 className="form-select"
                 value={stepData.format ?? 'pdf'}
@@ -1161,6 +1221,7 @@ export default function Settings() {
             </div>
             <div className="form-group" style={{ marginBottom: 'var(--space-2)' }}>
               <label className="form-label">Quality: {stepData.quality ?? 85}</label>
+              <span className="form-hint">Compression quality for JPEG/PDF. Lower values reduce file size but may introduce artifacts.</span>
               <input
                 type="range"
                 min={1}
@@ -1170,10 +1231,11 @@ export default function Settings() {
                 onChange={(e) => updateProfileStep(stepKey, 'quality', Number(e.target.value))}
                 style={{ width: '100%' }}
               />
-              <div style={styles.rangeLabels}><span>1</span><span>100</span></div>
+              <div style={styles.rangeLabels}><span>1 (smallest)</span><span>100 (best)</span></div>
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">DPI</label>
+              <label className="form-label">DPI: {stepData.dpi ?? 300}</label>
+              <span className="form-hint">Output resolution in dots per inch. 300 DPI is standard for printing, 150 DPI is sufficient for screen viewing.</span>
               <input
                 type="number"
                 className="form-input"

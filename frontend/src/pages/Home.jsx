@@ -7,8 +7,9 @@ import EmptyState from '../components/shared/EmptyState'
 import Spinner from '../components/shared/Spinner'
 import {
   IconDevices, IconPages, IconStorage, IconCamera, IconUpload,
-  IconGrid, IconFlash, IconFlashOff, IconSwitchCamera, IconCloudUpload,
+  IconGrid, IconFlash, IconFlashOff, IconSwitchCamera, IconCloudUpload, IconScan,
 } from '../components/shared/Icons'
+import CropModal from '../components/scanner/CropModal'
 
 /* ==========================================================================
    Helpers
@@ -243,6 +244,19 @@ export default function Home() {
     <div className="main-content__inner">
       {sendingOverlay}
 
+      {/* Crop Modal */}
+      <CropModal
+        open={scan.cropModalOpen}
+        imageUrl={scan.cropCurrentImage?.url}
+        initialPoints={scan.cropPoints}
+        detecting={scan.cropDetecting}
+        queueLength={scan.cropQueueLength}
+        onConfirm={scan.handleCropConfirm}
+        onSkip={scan.handleCropSkip}
+        onRedetect={scan.handleCropRedetect}
+        onCancel={scan.handleCropCancel}
+      />
+
       {/* ---- Stat badges ---- */}
       <div className="home-stats">
         <div className="home-stat-badge">
@@ -403,7 +417,7 @@ export default function Home() {
    ========================================================================== */
 
 function CameraCapture({ scan }) {
-  const { camera, showGrid, setShowGrid, flashAnimation, handleStartCamera, handleCapture, isSending } = scan
+  const { camera, showGrid, setShowGrid, showGuide, setShowGuide, flashAnimation, handleStartCamera, handleCapture, isSending } = scan
 
   if (camera.error === 'permission_denied') {
     return (
@@ -463,6 +477,25 @@ function CameraCapture({ scan }) {
           </div>
         )}
 
+        {/* Document guide overlay */}
+        {showGuide && camera.isActive && (
+          <div className="home-camera-guide" aria-hidden="true">
+            <div className="home-camera-guide__inner">
+              <svg className="home-camera-guide__corners" viewBox="0 0 100 100" preserveAspectRatio="none">
+                {/* Top-left */}
+                <path d="M0,12 L0,0 L12,0" />
+                {/* Top-right */}
+                <path d="M88,0 L100,0 L100,12" />
+                {/* Bottom-right */}
+                <path d="M100,88 L100,100 L88,100" />
+                {/* Bottom-left */}
+                <path d="M12,100 L0,100 L0,88" />
+              </svg>
+              <span className="home-camera-guide__label">Place document here</span>
+            </div>
+          </div>
+        )}
+
         {/* Flash animation */}
         {flashAnimation && <div className="home-camera-flash" />}
 
@@ -482,6 +515,14 @@ function CameraCapture({ scan }) {
               {scan.pages.length} page{scan.pages.length !== 1 ? 's' : ''}
             </div>
             <div className="home-camera-top-right">
+              <button
+                className={`btn btn-icon home-camera-ctrl${showGuide ? ' home-camera-ctrl--active' : ''}`}
+                onClick={() => setShowGuide((g) => !g)}
+                title={showGuide ? 'Hide guide' : 'Show guide'}
+                aria-label={showGuide ? 'Hide document guide' : 'Show document guide'}
+              >
+                <IconScan />
+              </button>
               <button
                 className="btn btn-icon home-camera-ctrl"
                 onClick={() => setShowGrid((g) => !g)}

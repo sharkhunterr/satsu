@@ -554,6 +554,10 @@ async def _process_batch(batch_id: str, profile_override: str = None):
             page_index = page["page_index"]
             original_path = os.path.join(get_data_dir(), page["original_path"])
 
+            # Read user-provided crop coordinates if any
+            crop_info_str = page["crop_info"] if "crop_info" in page.keys() else ""
+            page_crop = json.loads(crop_info_str) if crop_info_str else None
+
             await db.execute(
                 "UPDATE pages SET status='processing' WHERE batch_id=? AND page_index=?",
                 (batch_id, page_index),
@@ -569,6 +573,7 @@ async def _process_batch(batch_id: str, profile_override: str = None):
                             "step": step, "step_index": step_idx, "total_steps": total_steps,
                         }
                     ),
+                    crop_info=page_crop,
                 )
 
                 relative_processed = processed_path.replace(get_data_dir() + "/", "")
@@ -640,6 +645,37 @@ async def _process_batch(batch_id: str, profile_override: str = None):
         await db.close()
 
 
+@app.post("/api/detect-document")
+async def detect_document(file: UploadFile = File(...)):
+    """Detect document edges in an image. Returns 4 corner points normalized 0-1."""
+    import cv2
+    import numpy as np
+    from scanner import _detect_document, RESCALED_HEIGHT
+
+    content = await file.read()
+    np_arr = np.frombuffer(content, np.uint8)
+    image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+    if image is None:
+        raise HTTPException(400, "Cannot decode image")
+
+    h, w = image.shape[:2]
+    ratio = h / RESCALED_HEIGHT
+    new_w = int(w / ratio)
+    small = cv2.resize(image, (new_w, int(RESCALED_HEIGHT)), interpolation=cv2.INTER_AREA)
+
+    quad = await asyncio.to_thread(_detect_document, small)
+
+    if quad is None:
+        return {"detected": False, "points": None}
+
+    pts = quad.reshape(4, 2).astype("float64") * ratio
+    normalized = [
+        {"x": round(float(pts[i][0]) / w, 6), "y": round(float(pts[i][1]) / h, 6)}
+        for i in range(4)
+    ]
+    return {"detected": True, "points": normalized}
+
+
 @app.post("/api/scan/web-upload", status_code=201)
 async def scan_web_upload(
     request: Request,
@@ -647,12 +683,14 @@ async def scan_web_upload(
     files: list[UploadFile] = File(...),
     profile: str = Form("default"),
     source_type: str = Form("file_upload"),
+    crop_data: str = Form(""),
 ):
     """Combined create batch + upload all pages for web clients."""
     batch_id = _short_uuid()
     now = _now_iso()
     data_dir = get_data_dir()
     device_info = _parse_user_agent(request.headers.get("user-agent", ""))
+    crop_map = json.loads(crop_data) if crop_data else {}
 
     db = await get_db()
     try:
@@ -672,10 +710,12 @@ async def scan_web_upload(
             with open(file_path, "wb") as f:
                 f.write(content)
 
+            page_crop = crop_map.get(str(i))
+            crop_json = json.dumps(page_crop) if page_crop else ""
             await db.execute(
                 """INSERT INTO pages (batch_id, page_index, status, original_path,
-                   file_size_original, created_at) VALUES (?, ?, 'uploaded', ?, ?, ?)""",
-                (batch_id, i, relative_path, len(content), now),
+                   file_size_original, crop_info, created_at) VALUES (?, ?, 'uploaded', ?, ?, ?, ?)""",
+                (batch_id, i, relative_path, len(content), crop_json, now),
             )
 
         await db.commit()

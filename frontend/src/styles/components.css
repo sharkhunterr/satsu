@@ -981,6 +981,52 @@ button, a, select, input {
 .home-camera-grid__line--v1 { top: 0; bottom: 0; left: 33.33%; width: 1px; }
 .home-camera-grid__line--v2 { top: 0; bottom: 0; left: 66.66%; width: 1px; }
 
+/* Document guide overlay */
+.home-camera-guide {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.home-camera-guide__inner {
+  position: relative;
+  width: 82%;
+  height: 82%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.home-camera-guide__corners {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.home-camera-guide__corners path {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.7);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.home-camera-guide__label {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: var(--font-size-sm);
+  text-align: center;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  user-select: none;
+}
+
+.home-camera-ctrl--active {
+  background: rgba(255, 255, 255, 0.25);
+}
+
 .home-camera-flash {
   position: absolute;
   inset: 0;
@@ -1387,4 +1433,85 @@ button, a, select, input {
 @keyframes scanner-flash {
   0% { opacity: 0.8; }
   100% { opacity: 0; }
+}
+
+/* ==========================================================================
+   Crop Modal — Full-screen interactive document crop editor
+   ========================================================================== */
+
+.crop-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: #000;
+  z-index: var(--z-modal);
+  display: flex;
+  flex-direction: column;
+  animation: overlay-in 200ms ease;
+}
+
+.crop-modal-canvas-wrap {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
+
+.crop-modal-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.crop-modal-detecting {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 2;
+  color: #fff;
+}
+
+.crop-modal-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-3);
+  background: var(--color-surface-raised);
+  border-top: 1px solid var(--color-border);
+  flex-shrink: 0;
+  padding-bottom: max(var(--space-3), env(safe-area-inset-bottom));
+}
+
+.crop-modal-queue-badge {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  padding: var(--space-1) var(--space-2);
+  background: var(--color-bg);
+  border-radius: var(--radius-full);
+}
+
+@media (min-width: 1024px) {
+  .crop-modal-overlay {
+    padding: var(--space-6);
+    background-color: var(--color-surface-overlay);
+  }
+
+  .crop-modal-canvas-wrap {
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    background: #000;
+  }
+
+  .crop-modal-toolbar {
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+    gap: var(--space-3);
+    padding: var(--space-4);
+  }
 }

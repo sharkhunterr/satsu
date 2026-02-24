@@ -52,7 +52,7 @@ async def get_profile_options(db, profile_name: str) -> dict:
                 "enabled": False,
                 "method": "adaptive",
                 "block_size": 21,
-                "constant": 15,
+                "constant": 10,
             },
             "output": {"format": "pdf", "quality": 85, "dpi": 300},
         }
@@ -409,6 +409,38 @@ def _detect_document(small):
 
 def _step_auto_crop(image: np.ndarray, opts: dict) -> np.ndarray:
     """Step 1 -- Document detection + perspective correction to rectangle."""
+    crop_info = opts.get("_crop_info")
+
+    if crop_info and crop_info.get("skip"):
+        # Apply rotation even when skipping crop
+        rot = crop_info.get("rotation", 0)
+        if rot == 90:
+            image = cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
+        elif rot == 180:
+            image = cv2.rotate(image, cv2.ROTATE_180)
+        elif rot == 270:
+            image = cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        return image
+
+    if crop_info and crop_info.get("points"):
+        # Apply rotation first — points are in the rotated coordinate system
+        rot = crop_info.get("rotation", 0)
+        if rot == 90:
+            image = cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
+        elif rot == 180:
+            image = cv2.rotate(image, cv2.ROTATE_180)
+        elif rot == 270:
+            image = cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
+
+        # Use user-provided normalized coordinates (0-1)
+        h, w = image.shape[:2]
+        pts = np.array(
+            [[p["x"] * w, p["y"] * h] for p in crop_info["points"]],
+            dtype="float32",
+        )
+        return _four_point_transform(image, pts)
+
+    # Auto-detection fallback
     h, w = image.shape[:2]
     ratio = h / RESCALED_HEIGHT
     new_w = int(w / ratio)
@@ -516,14 +548,19 @@ def _step_sharpen(image: np.ndarray, opts: dict) -> np.ndarray:
     return np.clip(sharpened, 0, 255).astype(np.uint8)
 
 
-def _step_white_balance(image: np.ndarray, _opts: dict) -> np.ndarray:
+def _step_white_balance(image: np.ndarray, opts: dict) -> np.ndarray:
     """Step 6 -- Document illumination normalization.
 
     Estimates the local paper background via a large Gaussian blur
     then divides by it so the paper becomes pure white and shadows /
     lighting gradients are removed.  This is the key step that makes
     a phone photo look like a real flatbed scan.
+
+    strength (0-100): blends between original and fully normalised.
+    Lower values preserve light-coloured text at the cost of less
+    uniform paper whitening.
     """
+    strength = opts.get("strength", 75) / 100.0
     h, w = image.shape[:2]
 
     # --- fast background estimation: downscale → blur → upscale ----------
@@ -534,26 +571,49 @@ def _step_white_balance(image: np.ndarray, _opts: dict) -> np.ndarray:
     bg = cv2.resize(bg_small, (w, h), interpolation=cv2.INTER_LINEAR)
 
     # normalise: paper → 255, text stays dark  (SIMD-optimised divide)
-    result = cv2.divide(image.astype(np.float32), bg + 1.0, scale=255.0)
-    result = cv2.convertScaleAbs(result)          # clip + uint8 in one op
+    normalised = cv2.divide(image.astype(np.float32), bg + 1.0, scale=255.0)
+    normalised = cv2.convertScaleAbs(normalised)
 
     # --- light gamma correction to push paper toward pure white -----------
-    gamma = 0.85          # <1 brightens mid-tones / paper
+    gamma = 0.92          # <1 brightens mid-tones / paper (0.92 = gentle)
     lut = np.array([((i / 255.0) ** gamma) * 255
                      for i in range(256)], dtype=np.uint8)
-    return cv2.LUT(result, lut)
+    normalised = cv2.LUT(normalised, lut)
+
+    # blend with original to preserve light-coloured content
+    if strength >= 1.0:
+        return normalised
+    return cv2.addWeighted(normalised, strength, image, 1.0 - strength, 0)
 
 
 def _step_bw_mode(image: np.ndarray, opts: dict) -> np.ndarray:
-    """Step 7 -- B&W conversion (suhren/camscan approach).
-    Grayscale -> sharpen -> adaptive threshold = clean scan look."""
-    method = opts.get("method", "adaptive")
-    block_size = opts.get("block_size", 21)
-    constant = opts.get("constant", 15)
+    """Step 7 -- Color mode: color (pass-through), grayscale, or B&W.
+
+    B&W uses bilateral filter (edge-preserving denoise) instead of sharpening
+    before thresholding, which prevents noise amplification and micro-dots.
+    Morphological opening cleans any remaining isolated noise pixels.
+
+    Backward compat: old profiles with enabled=true and no mode field
+    are treated as mode=bw.
+    """
+    # Determine mode — backward compat: old profiles have no 'mode' field
+    mode = opts.get("mode", "bw")
+
+    if mode == "color":
+        return image
 
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    blurred = cv2.GaussianBlur(gray, (0, 0), 3)
-    sharp = cv2.addWeighted(gray, 1.5, blurred, -0.5, 0)
+
+    if mode == "grayscale":
+        return cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+
+    # mode == "bw"
+    method = opts.get("method", "adaptive")
+    block_size = opts.get("block_size", 21)
+    constant = opts.get("constant", 10)
+
+    # Edge-preserving denoise — smooths noise without blurring text edges
+    denoised = cv2.bilateralFilter(gray, 9, 75, 75)
 
     if method == "adaptive":
         if block_size % 2 == 0:
@@ -561,13 +621,17 @@ def _step_bw_mode(image: np.ndarray, opts: dict) -> np.ndarray:
         if block_size < 3:
             block_size = 3
         bw = cv2.adaptiveThreshold(
-            sharp, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            denoised, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
             cv2.THRESH_BINARY, block_size, constant,
         )
     elif method == "otsu":
-        _, bw = cv2.threshold(sharp, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        _, bw = cv2.threshold(denoised, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     else:
-        _, bw = cv2.threshold(sharp, 127, 255, cv2.THRESH_BINARY)
+        _, bw = cv2.threshold(denoised, 127, 255, cv2.THRESH_BINARY)
+
+    # Remove isolated noise dots (micro-points)
+    k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2, 2))
+    bw = cv2.morphologyEx(bw, cv2.MORPH_OPEN, k)
 
     return cv2.cvtColor(bw, cv2.COLOR_GRAY2BGR)
 
@@ -621,6 +685,7 @@ def _run_pipeline(
     page_index: int,
     profile_options: dict,
     progress_callback=None,
+    crop_info: dict = None,
 ) -> tuple[str, dict, int]:
     """Execute the full processing pipeline synchronously (CPU-bound)."""
     image = cv2.imread(image_path)
@@ -635,6 +700,9 @@ def _run_pipeline(
     for step_idx, (step_name, step_func) in enumerate(PIPELINE_STEPS):
         step_opts = profile_options.get(step_name, {})
         enabled = step_opts.get("enabled", False)
+        # Inject user-provided crop coordinates into auto_crop step
+        if step_name == "auto_crop" and crop_info is not None:
+            step_opts = {**step_opts, "_crop_info": crop_info}
 
         if not enabled:
             step_details.append({"name": step_name, "duration_ms": 0, "skipped": True})
@@ -716,6 +784,7 @@ async def process_page(
     page_index: int,
     profile_options: dict,
     progress_callback=None,
+    crop_info: dict = None,
 ) -> tuple[str, dict, int]:
     """Process a single page through the OpenCV pipeline."""
     loop = asyncio.get_running_loop()
@@ -733,4 +802,5 @@ async def process_page(
         page_index,
         profile_options,
         _threadsafe_callback,
+        crop_info,
     )

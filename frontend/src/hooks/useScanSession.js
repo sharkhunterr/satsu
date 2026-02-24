@@ -48,8 +48,17 @@ export function useScanSession() {
 
   // ---- Camera extras ----
   const [showGrid, setShowGrid] = useState(false)
+  const [showGuide, setShowGuide] = useState(true)
   const [flashAnimation, setFlashAnimation] = useState(false)
   const pagePileRef = useRef(null)
+
+  // ---- Crop modal state ----
+  const cropQueueRef = useRef([])
+  const [cropModalOpen, setCropModalOpen] = useState(false)
+  const [cropCurrentImage, setCropCurrentImage] = useState(null)
+  const [cropPoints, setCropPoints] = useState(null)
+  const [cropDetecting, setCropDetecting] = useState(false)
+  const [cropQueueLength, setCropQueueLength] = useState(0)
 
   // ---- Detect camera support ----
   useEffect(() => {
@@ -144,6 +153,132 @@ export function useScanSession() {
   }, [camera.error, mode])
 
   /* ========================================================================
+     File validation (must be before crop helpers that depend on it)
+     ======================================================================== */
+
+  const validateFile = useCallback((file) => {
+    if (!ACCEPTED_TYPES.includes(file.type)) {
+      return `Unsupported format: ${file.type || 'unknown'}. Use JPEG, PNG, or WebP.`
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      return `File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum is 20 MB.`
+    }
+    return null
+  }, [])
+
+  /* ========================================================================
+     Crop modal helpers
+     ======================================================================== */
+
+  const startCropForItem = useCallback(async (item) => {
+    setCropCurrentImage(item)
+    setCropModalOpen(true)
+    setCropDetecting(true)
+    setCropPoints(null)
+
+    try {
+      const formData = new FormData()
+      formData.append('file', item.blob, item.name)
+      const res = await fetch('/api/detect-document', { method: 'POST', body: formData })
+      if (!res.ok) throw new Error('Detection failed')
+      const data = await res.json()
+      setCropPoints(data.detected ? data.points : null)
+    } catch {
+      setCropPoints(null)
+    } finally {
+      setCropDetecting(false)
+    }
+  }, [])
+
+  const advanceCropQueue = useCallback(() => {
+    const queue = cropQueueRef.current
+    queue.shift()
+    setCropQueueLength(queue.length)
+    if (queue.length > 0) {
+      startCropForItem(queue[0])
+    } else {
+      setCropModalOpen(false)
+      setCropCurrentImage(null)
+      setCropPoints(null)
+    }
+  }, [startCropForItem])
+
+  const enqueueCrop = useCallback(
+    (fileList) => {
+      const items = []
+      for (const file of fileList) {
+        const error = validateFile(file)
+        if (error) {
+          // Invalid files skip crop and go directly to pile with error
+          const id = ++pageIdRef.current
+          setPages((prev) => [...prev, { id, blob: file, url: null, name: file.name, size: file.size, error }])
+          continue
+        }
+        const url = URL.createObjectURL(file)
+        items.push({ blob: file, url, name: file.name, size: file.size })
+      }
+      if (items.length === 0) return
+
+      const wasEmpty = cropQueueRef.current.length === 0
+      cropQueueRef.current.push(...items)
+      setCropQueueLength(cropQueueRef.current.length)
+      if (wasEmpty) {
+        startCropForItem(items[0])
+      }
+    },
+    [validateFile, startCropForItem],
+  )
+
+  const handleCropConfirm = useCallback(
+    ({ points, rotation }) => {
+      if (!cropCurrentImage) return
+      const id = ++pageIdRef.current
+      const cropInfo = { points, skip: false }
+      if (rotation) cropInfo.rotation = rotation
+      setPages((prev) => [
+        ...prev,
+        {
+          id,
+          blob: cropCurrentImage.blob,
+          url: cropCurrentImage.url,
+          name: cropCurrentImage.name,
+          size: cropCurrentImage.size,
+          cropInfo,
+        },
+      ])
+      advanceCropQueue()
+    },
+    [cropCurrentImage, advanceCropQueue],
+  )
+
+  const handleCropSkip = useCallback(() => {
+    if (!cropCurrentImage) return
+    const id = ++pageIdRef.current
+    setPages((prev) => [
+      ...prev,
+      {
+        id,
+        blob: cropCurrentImage.blob,
+        url: cropCurrentImage.url,
+        name: cropCurrentImage.name,
+        size: cropCurrentImage.size,
+        cropInfo: { skip: true },
+      },
+    ])
+    advanceCropQueue()
+  }, [cropCurrentImage, advanceCropQueue])
+
+  const handleCropCancel = useCallback(() => {
+    if (cropCurrentImage?.url) URL.revokeObjectURL(cropCurrentImage.url)
+    advanceCropQueue()
+  }, [cropCurrentImage, advanceCropQueue])
+
+  const handleCropRedetect = useCallback(() => {
+    if (!cropCurrentImage) return
+    startCropForItem(cropCurrentImage)
+  }, [cropCurrentImage, startCropForItem])
+
+  /* ========================================================================
      Camera mode helpers
      ======================================================================== */
 
@@ -158,56 +293,27 @@ export function useScanSession() {
     setFlashAnimation(true)
     setTimeout(() => setFlashAnimation(false), 200)
 
-    const id = ++pageIdRef.current
-    const url = URL.createObjectURL(blob)
-    setPages((prev) => [
-      ...prev,
-      { id, blob, url, name: `page-${prev.length + 1}.jpg`, size: blob.size },
-    ])
+    enqueueCrop([new File([blob], `page-${pages.length + 1}.jpg`, { type: 'image/jpeg' })])
 
     setTimeout(() => {
       if (pagePileRef.current) {
         pagePileRef.current.scrollLeft = pagePileRef.current.scrollWidth
       }
     }, 50)
-  }, [camera])
+  }, [camera, enqueueCrop, pages.length])
 
   /* ========================================================================
      Upload mode helpers
      ======================================================================== */
 
-  const validateFile = useCallback((file) => {
-    if (!ACCEPTED_TYPES.includes(file.type)) {
-      return `Unsupported format: ${file.type || 'unknown'}. Use JPEG, PNG, or WebP.`
-    }
-    if (file.size > MAX_FILE_SIZE) {
-      return `File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum is 20 MB.`
-    }
-    return null
-  }, [])
-
-  const addFiles = useCallback(
-    (fileList) => {
-      const newPages = []
-      for (const file of fileList) {
-        const error = validateFile(file)
-        const id = ++pageIdRef.current
-        const url = error ? null : URL.createObjectURL(file)
-        newPages.push({ id, blob: file, url, name: file.name, size: file.size, error })
-      }
-      setPages((prev) => [...prev, ...newPages])
-    },
-    [validateFile],
-  )
-
   const handleFileSelect = useCallback(
     (e) => {
       if (e.target.files?.length) {
-        addFiles(Array.from(e.target.files))
+        enqueueCrop(Array.from(e.target.files))
       }
       e.target.value = ''
     },
-    [addFiles],
+    [enqueueCrop],
   )
 
   const handleDrop = useCallback(
@@ -215,10 +321,10 @@ export function useScanSession() {
       e.preventDefault()
       setIsDragOver(false)
       if (e.dataTransfer?.files?.length) {
-        addFiles(Array.from(e.dataTransfer.files))
+        enqueueCrop(Array.from(e.dataTransfer.files))
       }
     },
-    [addFiles],
+    [enqueueCrop],
   )
 
   const handleDragOver = useCallback((e) => {
@@ -286,11 +392,18 @@ export function useScanSession() {
 
     try {
       const formData = new FormData()
-      validPages.forEach((page) => {
+      const cropDataMap = {}
+      validPages.forEach((page, i) => {
         formData.append('files', page.blob, page.name)
+        if (page.cropInfo) {
+          cropDataMap[String(i)] = page.cropInfo
+        }
       })
       formData.append('profile', selectedProfile)
       formData.append('source_type', mode === 'camera' ? 'web_camera' : 'file_upload')
+      if (Object.keys(cropDataMap).length > 0) {
+        formData.append('crop_data', JSON.stringify(cropDataMap))
+      }
 
       const result = await new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest()
@@ -371,6 +484,8 @@ export function useScanSession() {
     camera,
     showGrid,
     setShowGrid,
+    showGuide,
+    setShowGuide,
     flashAnimation,
     handleStartCamera,
     handleCapture,
@@ -403,5 +518,16 @@ export function useScanSession() {
     uploadProgress,
     processingState,
     handleSend,
+
+    // Crop modal
+    cropModalOpen,
+    cropCurrentImage,
+    cropPoints,
+    cropDetecting,
+    cropQueueLength,
+    handleCropConfirm,
+    handleCropSkip,
+    handleCropCancel,
+    handleCropRedetect,
   }
 }
