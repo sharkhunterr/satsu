@@ -5,7 +5,16 @@
  * Buttons: SCAN (capture), SEND (upload + process), RESET (clear batch)
  * LED: Status feedback patterns
  *
- * Flow: Boot → WiFi → Register → Idle (button polling + heartbeat)
+ * Configuration priority:
+ *   1. NVS Preferences (written by web flasher or Serial config)
+ *   2. config.h compile-time defaults
+ *
+ * On first boot (no NVS config), the firmware enters Serial config mode:
+ *   - Waits 5 seconds for JSON config on Serial (115200 baud)
+ *   - If received, saves to NVS and reboots
+ *   - If timeout, boots with config.h defaults
+ *
+ * Flow: Boot → Load Config → WiFi → Register → Idle (button polling + heartbeat)
  */
 
 #include "config.h"
@@ -15,6 +24,7 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
+#include <Preferences.h>
 
 // Camera pin definitions for AI-Thinker module
 #define PWDN_GPIO_NUM     32
@@ -34,9 +44,23 @@
 #define HREF_GPIO_NUM     23
 #define PCLK_GPIO_NUM     22
 
+// Runtime configuration — loaded from NVS or config.h defaults
+String cfgWifiSsid;
+String cfgWifiPass;
+String cfgServerUrl;
+String cfgApiKey;
+int cfgBtnScan;
+int cfgBtnSend;
+int cfgBtnReset;
+int cfgLedPin;
+int cfgFlashPin;
+int cfgMaxPages;
+
+Preferences preferences;
+
 // State
 Button btnScan, btnSend, btnReset;
-camera_fb_t* frameBuffer[DEFAULT_MAX_PAGES];
+camera_fb_t** frameBuffer = nullptr;
 int capturedPages = 0;
 int maxPages = DEFAULT_MAX_PAGES;
 String batchId = "";
@@ -48,6 +72,108 @@ int configQuality = DEFAULT_QUALITY;
 framesize_t configFramesize = DEFAULT_FRAMESIZE;
 bool configFlash = FLASH_ENABLED;
 int configFlashDuration = FLASH_DURATION_MS;
+
+
+// ---------------------------------------------------------------------------
+// NVS Configuration
+// ---------------------------------------------------------------------------
+
+bool hasNvsConfig() {
+  preferences.begin("espscancam", true);  // read-only
+  bool hasConfig = preferences.getBool("configured", false);
+  preferences.end();
+  return hasConfig;
+}
+
+void loadNvsConfig() {
+  preferences.begin("espscancam", true);  // read-only
+
+  cfgWifiSsid   = preferences.getString("wifi_ssid", WIFI_SSID);
+  cfgWifiPass    = preferences.getString("wifi_pass", WIFI_PASSWORD);
+  cfgServerUrl   = preferences.getString("server_url", SERVER_URL);
+  cfgApiKey      = preferences.getString("api_key", API_KEY);
+  cfgBtnScan     = preferences.getInt("btn_scan", BUTTON_SCAN);
+  cfgBtnSend     = preferences.getInt("btn_send", BUTTON_SEND);
+  cfgBtnReset    = preferences.getInt("btn_reset", BUTTON_RESET);
+  cfgLedPin      = preferences.getInt("led_pin", LED_PIN);
+  cfgFlashPin    = preferences.getInt("flash_pin", FLASH_PIN);
+  cfgMaxPages    = preferences.getInt("max_pages", DEFAULT_MAX_PAGES);
+
+  preferences.end();
+
+  maxPages = cfgMaxPages;
+}
+
+void saveNvsConfig(JsonDocument& doc) {
+  preferences.begin("espscancam", false);  // read-write
+
+  if (doc.containsKey("wifi_ssid"))   preferences.putString("wifi_ssid", doc["wifi_ssid"].as<String>());
+  if (doc.containsKey("wifi_pass"))   preferences.putString("wifi_pass", doc["wifi_pass"].as<String>());
+  if (doc.containsKey("server_url"))  preferences.putString("server_url", doc["server_url"].as<String>());
+  if (doc.containsKey("api_key"))     preferences.putString("api_key", doc["api_key"].as<String>());
+  if (doc.containsKey("btn_scan"))    preferences.putInt("btn_scan", doc["btn_scan"].as<int>());
+  if (doc.containsKey("btn_send"))    preferences.putInt("btn_send", doc["btn_send"].as<int>());
+  if (doc.containsKey("btn_reset"))   preferences.putInt("btn_reset", doc["btn_reset"].as<int>());
+  if (doc.containsKey("led_pin"))     preferences.putInt("led_pin", doc["led_pin"].as<int>());
+  if (doc.containsKey("flash_pin"))   preferences.putInt("flash_pin", doc["flash_pin"].as<int>());
+  if (doc.containsKey("max_pages"))   preferences.putInt("max_pages", doc["max_pages"].as<int>());
+
+  preferences.putBool("configured", true);
+  preferences.end();
+}
+
+/**
+ * Wait for JSON config on Serial. Returns true if config was received.
+ *
+ * Protocol:
+ *   1. Firmware prints "ESPSCANCAM_READY" on Serial
+ *   2. Host sends JSON config ending with newline
+ *   3. Firmware parses, saves to NVS, prints "ESPSCANCAM_OK"
+ *   4. Firmware reboots
+ */
+bool waitForSerialConfig(unsigned long timeoutMs) {
+  Serial.println("ESPSCANCAM_READY");
+  Serial.flush();
+
+  unsigned long start = millis();
+  String buffer = "";
+
+  while (millis() - start < timeoutMs) {
+    if (Serial.available()) {
+      char c = Serial.read();
+      if (c == '\n' || c == '\r') {
+        if (buffer.length() > 2) {
+          // Try to parse JSON
+          JsonDocument doc;
+          DeserializationError error = deserializeJson(doc, buffer);
+          if (!error) {
+            saveNvsConfig(doc);
+            Serial.println("ESPSCANCAM_OK");
+            Serial.flush();
+            delay(500);
+            ESP.restart();
+            return true;
+          } else {
+            Serial.print("ESPSCANCAM_ERROR: JSON parse failed: ");
+            Serial.println(error.c_str());
+          }
+        }
+        buffer = "";
+      } else {
+        buffer += c;
+      }
+    }
+    delay(10);
+  }
+
+  Serial.println("ESPSCANCAM_TIMEOUT");
+  return false;
+}
+
+
+// ---------------------------------------------------------------------------
+// Camera
+// ---------------------------------------------------------------------------
 
 bool initCamera() {
   camera_config_t config;
@@ -91,11 +217,11 @@ bool initCamera() {
 
 void connectWiFi() {
   ledSetPattern(LED_FAST_BLINK);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  WiFi.begin(cfgWifiSsid.c_str(), cfgWifiPass.c_str());
 
   int attempts = 0;
   while (WiFi.status() != WL_CONNECTED && attempts < 30) {
-    ledUpdate(LED_PIN);
+    ledUpdate(cfgLedPin);
     delay(500);
     attempts++;
   }
@@ -112,18 +238,18 @@ bool registerDevice() {
   ledSetPattern(LED_SLOW_BLINK);
 
   HTTPClient http;
-  String url = String(SERVER_URL) + "/api/device/register";
+  String url = cfgServerUrl + "/api/device/register";
   http.begin(url);
   http.addHeader("Content-Type", "application/json");
 
-  if (strlen(API_KEY) > 0) {
-    http.addHeader("X-API-Key", API_KEY);
+  if (cfgApiKey.length() > 0) {
+    http.addHeader("X-API-Key", cfgApiKey);
   }
 
   JsonDocument doc;
   doc["mac"] = deviceMac;
   doc["ip"] = WiFi.localIP().toString();
-  doc["firmware"] = "1.0.0";
+  doc["firmware"] = "1.1.0";
   doc["resolution"] = (configFramesize == FRAMESIZE_UXGA) ? "UXGA" : "SVGA";
   doc["max_pages"] = maxPages;
 
@@ -161,14 +287,14 @@ void captureFrame() {
 
   // Flash
   if (configFlash) {
-    digitalWrite(FLASH_PIN, HIGH);
+    digitalWrite(cfgFlashPin, HIGH);
     delay(configFlashDuration);
   }
 
   camera_fb_t* fb = esp_camera_fb_get();
 
   if (configFlash) {
-    digitalWrite(FLASH_PIN, LOW);
+    digitalWrite(cfgFlashPin, LOW);
   }
 
   if (!fb) return;
@@ -187,11 +313,11 @@ bool uploadBatch() {
 
   // Create batch
   HTTPClient http;
-  String url = String(SERVER_URL) + "/api/scan/batch";
+  String url = cfgServerUrl + "/api/scan/batch";
   http.begin(url);
   http.addHeader("Content-Type", "application/json");
-  if (strlen(API_KEY) > 0) {
-    http.addHeader("X-API-Key", API_KEY);
+  if (cfgApiKey.length() > 0) {
+    http.addHeader("X-API-Key", cfgApiKey);
   }
 
   JsonDocument doc;
@@ -219,12 +345,12 @@ bool uploadBatch() {
   for (int i = 0; i < capturedPages; i++) {
     bool uploaded = false;
     for (int retry = 0; retry < UPLOAD_RETRY_COUNT && !uploaded; retry++) {
-      url = String(SERVER_URL) + "/api/scan/upload/" + batchId + "/" + String(i);
+      url = cfgServerUrl + "/api/scan/upload/" + batchId + "/" + String(i);
       http.begin(url);
       http.addHeader("Content-Type", "image/jpeg");
       http.addHeader("X-Device-MAC", deviceMac);
-      if (strlen(API_KEY) > 0) {
-        http.addHeader("X-API-Key", API_KEY);
+      if (cfgApiKey.length() > 0) {
+        http.addHeader("X-API-Key", cfgApiKey);
       }
 
       httpCode = http.sendRequest("POST", frameBuffer[i]->buf, frameBuffer[i]->len);
@@ -244,11 +370,11 @@ bool uploadBatch() {
 
   // Trigger processing
   ledSetPattern(LED_DOUBLE_BLINK);
-  url = String(SERVER_URL) + "/api/scan/process/" + batchId;
+  url = cfgServerUrl + "/api/scan/process/" + batchId;
   http.begin(url);
   http.addHeader("Content-Type", "application/json");
-  if (strlen(API_KEY) > 0) {
-    http.addHeader("X-API-Key", API_KEY);
+  if (cfgApiKey.length() > 0) {
+    http.addHeader("X-API-Key", cfgApiKey);
   }
   httpCode = http.POST("{}");
   http.end();
@@ -272,12 +398,28 @@ void clearBatch() {
 void setup() {
   Serial.begin(115200);
 
-  ledSetup(LED_PIN);
-  buttonSetup(btnScan, BUTTON_SCAN);
-  buttonSetup(btnSend, BUTTON_SEND);
-  buttonSetup(btnReset, BUTTON_RESET);
+  // Load config from NVS (falls back to config.h defaults)
+  loadNvsConfig();
 
-  memset(frameBuffer, 0, sizeof(frameBuffer));
+  // Allocate frame buffer array
+  frameBuffer = (camera_fb_t**)calloc(cfgMaxPages, sizeof(camera_fb_t*));
+
+  // If no NVS config yet, wait for Serial config from web flasher
+  if (!hasNvsConfig()) {
+    Serial.println("No NVS config found. Waiting for Serial configuration...");
+    waitForSerialConfig(5000);
+    // Reload config in case it was just saved
+    loadNvsConfig();
+  }
+
+  ledSetup(cfgLedPin);
+  if (cfgFlashPin != cfgLedPin) {
+    pinMode(cfgFlashPin, OUTPUT);
+    digitalWrite(cfgFlashPin, LOW);
+  }
+  buttonSetup(btnScan, cfgBtnScan);
+  buttonSetup(btnSend, cfgBtnSend);
+  buttonSetup(btnReset, cfgBtnReset);
 
   if (!initCamera()) {
     ledSetPattern(LED_SOS);
@@ -292,7 +434,24 @@ void setup() {
 }
 
 void loop() {
-  ledUpdate(LED_PIN);
+  ledUpdate(cfgLedPin);
+
+  // Check for Serial config commands at runtime too
+  if (Serial.available()) {
+    String line = Serial.readStringUntil('\n');
+    line.trim();
+    if (line.startsWith("{")) {
+      JsonDocument doc;
+      DeserializationError error = deserializeJson(doc, line);
+      if (!error) {
+        saveNvsConfig(doc);
+        Serial.println("ESPSCANCAM_OK");
+        Serial.flush();
+        delay(500);
+        ESP.restart();
+      }
+    }
+  }
 
   // Reconnect WiFi if needed
   if (WiFi.status() != WL_CONNECTED) {

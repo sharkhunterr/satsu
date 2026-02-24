@@ -614,7 +614,7 @@ function SwipeCompare({ originalSrc, processedSrc, alt }) {
    Processing Details Accordion
    ========================================================================== */
 
-function ProcessingAccordion({ page, index }) {
+function ProcessingAccordion({ page, index, exportInfo }) {
   const [open, setOpen] = useState(false)
 
   // Backend stores everything in processing_details JSON
@@ -631,6 +631,11 @@ function ProcessingAccordion({ page, index }) {
   const sizeReduction = origSize && procSize && origSize > 0
     ? Math.round((1 - procSize / origSize) * 100)
     : null
+
+  // Storage steps from export_info (batch-level, shown on first page)
+  const storageSteps = index === 0 && exportInfo
+    ? Object.entries(exportInfo).filter(([, v]) => v && typeof v === 'object' && 'success' in v)
+    : []
 
   return (
     <div style={styles.accordion}>
@@ -669,7 +674,7 @@ function ProcessingAccordion({ page, index }) {
               {pipelineSteps.map((step, i) => (
                 <div key={i} style={{
                   ...styles.pipelineStep,
-                  borderBottom: i < pipelineSteps.length - 1 ? '1px solid var(--color-border)' : 'none',
+                  borderBottom: i < pipelineSteps.length - 1 || storageSteps.length > 0 ? '1px solid var(--color-border)' : 'none',
                 }}>
                   <span style={styles.pipelineStepName}>
                     {step.name}
@@ -678,6 +683,22 @@ function ProcessingAccordion({ page, index }) {
                     {step.skipped
                       ? 'skipped'
                       : formatDuration(step.duration_ms)}
+                  </span>
+                </div>
+              ))}
+              {storageSteps.map(([name, result], i) => (
+                <div key={`storage-${name}`} style={{
+                  ...styles.pipelineStep,
+                  borderBottom: i < storageSteps.length - 1 ? '1px solid var(--color-border)' : 'none',
+                }}>
+                  <span style={styles.pipelineStepName}>
+                    storage:{name}
+                  </span>
+                  <span style={{
+                    ...styles.pipelineStepValue,
+                    color: result.success ? 'var(--color-success)' : 'var(--color-error)',
+                  }}>
+                    {result.success ? formatDuration(result.duration_ms) : 'failed'}
                   </span>
                 </div>
               ))}
@@ -732,49 +753,138 @@ function ProcessingAccordion({ page, index }) {
 }
 
 /* ==========================================================================
-   Export Status Section
+   PaperlessDocLink – fetches title dynamically from Paperless-NGX
    ========================================================================== */
 
-function ExportSection({ batch, exporting, exportStatus, onExport }) {
-  const exportInfo = batch.export_info || batch.exportInfo
+function PaperlessDocLink({ documentId, fallbackUrl }) {
+  const [docInfo, setDocInfo] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!documentId) { setLoading(false); return }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/storage/paperless/${documentId}`)
+        if (res.ok && !cancelled) {
+          setDocInfo(await res.json())
+        }
+      } catch {
+        // Non-critical
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [documentId])
+
+  const url = docInfo?.url || fallbackUrl
+  const title = docInfo?.title || `Document #${documentId}`
+
+  if (loading) {
+    return <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>Loading...</span>
+  }
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      style={{
+        fontSize: 'var(--text-sm)',
+        color: 'var(--color-primary)',
+        textDecoration: 'none',
+        fontWeight: 'var(--font-weight-medium)',
+      }}
+    >
+      {title} &#8599;
+    </a>
+  )
+}
+
+/* ==========================================================================
+   Storage Status Section (formerly Export)
+   ========================================================================== */
+
+const BACKEND_LABELS = {
+  local: 'Local',
+  paperless: 'Paperless',
+  webdav: 'WebDAV',
+  gdrive: 'Google Drive',
+  smb: 'SMB',
+}
+
+function StorageSection({ batch, exporting, exportStatus, onExport }) {
+  const exportInfo = batch.export_info || batch.exportInfo || {}
   const batchStatus = batch.status
 
-  // Don't show if batch isn't completed and there's no export info
-  if (batchStatus !== 'completed' && batchStatus !== 'export_failed' && !exportInfo) {
+  // Collect storage results from export_info (object keyed by backend name)
+  const storageEntries = typeof exportInfo === 'object' && !Array.isArray(exportInfo)
+    ? Object.entries(exportInfo).filter(([, v]) => v && typeof v === 'object' && 'success' in v)
+    : []
+
+  // Don't show if batch isn't completed and there's no storage info
+  if (batchStatus !== 'completed' && batchStatus !== 'export_failed' && storageEntries.length === 0) {
     return null
   }
 
-  const exports = Array.isArray(exportInfo) ? exportInfo : exportInfo ? [exportInfo] : []
-
   return (
     <div className="export-section">
-      <div className="export-section__title">Export</div>
+      <div className="export-section__title">Storage</div>
 
-      {exports.length > 0 ? (
-        exports.map((exp, i) => (
-          <div key={i} className="export-section__item">
-            <div>
+      {storageEntries.length > 0 ? (
+        storageEntries.map(([name, result]) => (
+          <div key={name} className="export-section__item" style={{ flexDirection: 'column', gap: 'var(--space-2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
               <span style={{ fontWeight: 'var(--font-weight-medium)', color: 'var(--color-text)' }}>
-                {exp.backend || exp.type || 'Storage'}
+                {BACKEND_LABELS[name] || name}
               </span>
-              {exp.path && (
-                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)', marginTop: 2 }}>
-                  {exp.path}
-                </div>
-              )}
+              <span className={`badge ${result.success ? 'badge-completed' : 'badge-error'}`}>
+                {result.success ? 'success' : 'failed'}
+              </span>
             </div>
-            <span className={`badge ${exp.status === 'completed' || exp.status === 'success' ? 'badge-completed' : exp.status === 'error' || exp.status === 'failed' ? 'badge-error' : 'badge-processing'}`}>
-              {exp.status || 'unknown'}
-            </span>
+
+            {/* Paperless: dynamic doc link */}
+            {name === 'paperless' && result.success && result.document_id && (
+              <div style={{ paddingLeft: 'var(--space-1)' }}>
+                <PaperlessDocLink documentId={result.document_id} fallbackUrl={result.url || result.path} />
+              </div>
+            )}
+
+            {/* Other backends: show path */}
+            {name !== 'paperless' && result.path && (
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)' }}>
+                {result.url ? (
+                  <a href={result.url} target="_blank" rel="noopener noreferrer"
+                     style={{ color: 'var(--color-primary)', textDecoration: 'none' }}>
+                    {result.path} &#8599;
+                  </a>
+                ) : result.path}
+              </div>
+            )}
+
+            {/* Error message */}
+            {!result.success && (result.message || result.error) && (
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-error)' }}>
+                {result.message || result.error}
+              </div>
+            )}
+
+            {/* Duration */}
+            {result.duration_ms != null && (
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
+                {formatDuration(result.duration_ms)}
+              </div>
+            )}
           </div>
         ))
       ) : batchStatus === 'export_failed' ? (
         <div style={{ fontSize: 'var(--text-sm)', color: 'var(--color-error)', marginBottom: 'var(--space-3)' }}>
-          Export failed. You can retry the export below.
+          Storage failed. You can retry below.
         </div>
       ) : (
         <div style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-3)' }}>
-          No export data yet.
+          No storage data yet.
         </div>
       )}
 
@@ -787,13 +897,13 @@ function ExportSection({ batch, exporting, exportStatus, onExport }) {
           style={{ marginTop: 'var(--space-2)' }}
         >
           {exporting ? (
-            <><Spinner size="sm" /> Exporting...</>
+            <><Spinner size="sm" /> Sending...</>
           ) : exportStatus === 'success' ? (
-            'Re-Export'
+            'Re-send to Storage'
           ) : batchStatus === 'export_failed' ? (
-            'Retry Export'
+            'Retry Storage'
           ) : (
-            'Export'
+            'Send to Storage'
           )}
         </button>
       )}
@@ -1048,7 +1158,7 @@ export default function Detail() {
   const pages = batch.pages || []
   const currentPage = pages[activePage] || null
   const batchId = batch.id || batch.batch_id || id
-  const deviceLabel = batch.device_name || batch.deviceName || batch.device_mac || batch.deviceMac || '--'
+  const deviceLabel = batch.device_name || batch.deviceName || batch.device_info || batch.device_mac || batch.deviceMac || '--'
   const totalSize = batch.total_size || batch.totalSize || batch.file_size || batch.fileSize
   const duration = batch.processing_duration || batch.processingDuration || batch.duration_ms || batch.durationMs
   const profile = batch.profile || batch.processing_profile || batch.processingProfile
@@ -1385,10 +1495,14 @@ export default function Detail() {
           )}
 
           {/* ---- Processing details accordion ---- */}
-          <ProcessingAccordion page={currentPage} index={activePage} />
+          <ProcessingAccordion
+            page={currentPage}
+            index={activePage}
+            exportInfo={batch.export_info || batch.exportInfo}
+          />
 
-          {/* ---- Export status section ---- */}
-          <ExportSection
+          {/* ---- Storage status section ---- */}
+          <StorageSection
             batch={batch}
             exporting={exporting}
             exportStatus={exportStatus}

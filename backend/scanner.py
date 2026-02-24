@@ -202,36 +202,65 @@ def _find_rectangles(image):
     return rectangles
 
 
-def _get_largest_rectangle(rectangles, min_area_ratio, img_area):
-    """Pick the largest rectangle between min_area_ratio and 95% of image.
+def _get_best_rectangle(rectangles, min_area_ratio, img_area, img_w, img_h):
+    """Pick the best rectangle by area AND centrality.
 
-    Rectangles covering >95% are rejected as false positives (image boundary).
+    Uses a scoring function that favours rectangles whose centre is
+    closer to the image centre.  This prevents a document fragment at
+    the edge (e.g. another page peeking in at the top) from winning
+    over the actual document in the middle of the photo.
+
+    Rectangles covering >95% of the image area are rejected as false
+    positives (image boundary).
     """
     if not rectangles:
         return None
 
     max_area = img_area * 0.95
+    img_cx, img_cy = img_w / 2.0, img_h / 2.0
+    max_dist = math.sqrt(img_cx ** 2 + img_cy ** 2)
+
     best = None
-    best_area = 0
+    best_score = 0
 
     for rect in rectangles:
         br = cv2.boundingRect(rect)
         area = br[2] * br[3]
-        if area > best_area and area >= img_area * min_area_ratio and area <= max_area:
-            best_area = area
+        if area < img_area * min_area_ratio or area > max_area:
+            continue
+
+        # Centrality: 1.0 = perfectly centred, 0.0 = in a corner
+        rect_cx = br[0] + br[2] / 2.0
+        rect_cy = br[1] + br[3] / 2.0
+        dist = math.sqrt((rect_cx - img_cx) ** 2 + (rect_cy - img_cy) ** 2)
+        centrality = 1.0 - (dist / max_dist)
+
+        area_ratio = area / img_area
+        # Near-full-frame rects (>88%) are almost always image boundaries,
+        # not real document edges — heavily discount them so genuine
+        # smaller detections win when available.
+        scoring_area = area_ratio * 0.3 if area_ratio > 0.88 else area_ratio
+        score = scoring_area * (0.5 + 0.5 * centrality)
+
+        if score > best_score:
+            best_score = score
             best = rect
 
     return best
 
 
-def _try_contour_quad(contours, img_area, min_ratio=0.10, max_ratio=0.95):
-    """Try to extract a 4-point quad from the largest contours.
+def _try_contour_quad(contours, img_area, min_ratio=0.10, max_ratio=0.95,
+                      img_w=None, img_h=None):
+    """Try to extract the best 4-point quad from the top contours.
 
     Both the contour area AND the bounding rect of the resulting quad
     must fall within [min_ratio, max_ratio] of the image area.
+    When img_w/img_h are provided, uses centre-bias scoring so a
+    centred document wins over a larger off-centre fragment.
     """
     contours = sorted(contours, key=cv2.contourArea, reverse=True)
 
+    candidates = []
     for c in contours[:5]:
         area = cv2.contourArea(c)
         if area < img_area * min_ratio or area > img_area * max_ratio:
@@ -243,13 +272,38 @@ def _try_contour_quad(contours, img_area, min_ratio=0.10, max_ratio=0.95):
         for eps in np.arange(0.01, 0.10, 0.005):
             approx = cv2.approxPolyDP(hull, eps * peri, True)
             if len(approx) == 4 and cv2.isContourConvex(approx):
-                # Also verify bounding rect doesn't span the full image
                 br = cv2.boundingRect(approx)
                 br_area = br[2] * br[3]
                 if br_area > img_area * max_ratio:
-                    break  # larger eps won't help, try next contour
-                return _order_points(approx.reshape(4, 2))
-    return None
+                    break
+                candidates.append(approx.reshape(4, 2))
+                break  # got a quad for this contour, move on
+
+    if not candidates:
+        return None
+
+    if len(candidates) == 1 or img_w is None or img_h is None:
+        return _order_points(candidates[0])
+
+    # Score candidates by area + centrality
+    img_cx, img_cy = img_w / 2.0, img_h / 2.0
+    max_dist = math.sqrt(img_cx ** 2 + img_cy ** 2)
+    best, best_score = candidates[0], 0
+
+    for quad in candidates:
+        br = cv2.boundingRect(quad)
+        area_ratio = (br[2] * br[3]) / img_area
+        rect_cx = br[0] + br[2] / 2.0
+        rect_cy = br[1] + br[3] / 2.0
+        dist = math.sqrt((rect_cx - img_cx) ** 2 + (rect_cy - img_cy) ** 2)
+        centrality = 1.0 - (dist / max_dist)
+        scoring_area = area_ratio * 0.3 if area_ratio > 0.88 else area_ratio
+        score = scoring_area * (0.5 + 0.5 * centrality)
+        if score > best_score:
+            best_score = score
+            best = quad
+
+    return _order_points(best)
 
 
 def _detect_document(small):
@@ -259,7 +313,7 @@ def _detect_document(small):
 
     # Primary: multi-channel multi-threshold rectangle detection
     rectangles = _find_rectangles(small)
-    quad = _get_largest_rectangle(rectangles, 0.12, img_area)
+    quad = _get_best_rectangle(rectangles, 0.12, img_area, sw, sh)
 
     if quad is not None:
         return _order_points(quad)
@@ -277,7 +331,7 @@ def _detect_document(small):
     contours, _ = cv2.findContours(
         closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
     )
-    result = _try_contour_quad(contours, img_area)
+    result = _try_contour_quad(contours, img_area, img_w=sw, img_h=sh)
     if result is not None:
         return result
 
@@ -292,7 +346,7 @@ def _detect_document(small):
     contours, _ = cv2.findContours(
         paper, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
     )
-    result = _try_contour_quad(contours, img_area)
+    result = _try_contour_quad(contours, img_area, img_w=sw, img_h=sh)
     if result is not None:
         return result
 
@@ -308,7 +362,7 @@ def _detect_document(small):
     contours, _ = cv2.findContours(
         lab_bin, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
     )
-    result = _try_contour_quad(contours, img_area)
+    result = _try_contour_quad(contours, img_area, img_w=sw, img_h=sh)
     if result is not None:
         return result
 
@@ -346,7 +400,7 @@ def _detect_document(small):
     contours, _ = cv2.findContours(
         mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
     )
-    return _try_contour_quad(contours, img_area, max_ratio=0.98)
+    return _try_contour_quad(contours, img_area, max_ratio=0.98, img_w=sw, img_h=sh)
 
 
 # ---------------------------------------------------------------------------

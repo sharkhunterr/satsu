@@ -5,6 +5,8 @@ import { WebSocketContext } from '../App'
 import ConfirmDialog from '../components/shared/ConfirmDialog'
 import Spinner from '../components/shared/Spinner'
 import EmptyState from '../components/shared/EmptyState'
+import FlashModal from '../components/devices/FlashModal'
+import { IconFlash } from '../components/shared/Icons'
 
 /* ==========================================================================
    Helpers
@@ -525,6 +527,7 @@ export default function Devices() {
   const [devices, setDevices] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [flashOpen, setFlashOpen] = useState(false)
 
   /* ------------------------------------------------------------------
      Fetch devices
@@ -658,11 +661,25 @@ export default function Devices() {
     <div className="main-content__inner">
       {/* Page header */}
       <div className="page-header">
-        <h1 className="page-header__title">Devices</h1>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
+          <h1 className="page-header__title" style={{ margin: 0 }}>Devices</h1>
+          <button
+            className="btn btn-primary btn--sm"
+            onClick={() => setFlashOpen(true)}
+            type="button"
+            style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)' }}
+          >
+            <IconFlash style={{ fontSize: '1em' }} />
+            Flash ESP32-CAM
+          </button>
+        </div>
         <p className="page-header__description">
           Manage your ESP32-CAM devices, configure settings, and monitor connection status.
         </p>
       </div>
+
+      {/* Flash modal */}
+      <FlashModal open={flashOpen} onClose={() => setFlashOpen(false)} />
 
       {devices.length === 0 ? (
         <EmptyState

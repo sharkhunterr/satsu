@@ -176,6 +176,13 @@ async def init_db() -> None:
     try:
         await db.executescript(SCHEMA_SQL)
 
+        # Migration: add device_info column if missing
+        cursor = await db.execute("PRAGMA table_info(batches)")
+        columns = {row[1] for row in await cursor.fetchall()}
+        if "device_info" not in columns:
+            await db.execute("ALTER TABLE batches ADD COLUMN device_info TEXT DEFAULT ''")
+            await db.commit()
+
         # Seed default profiles if none exist
         cursor = await db.execute("SELECT COUNT(*) FROM profiles")
         row = await cursor.fetchone()

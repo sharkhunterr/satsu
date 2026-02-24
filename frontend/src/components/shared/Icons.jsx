@@ -191,6 +191,19 @@ export function IconSwitchCamera(props) {
   )
 }
 
+export function IconUsb(props) {
+  return (
+    <svg {...sv} {...props}>
+      <path d="M12 2v10" />
+      <path d="M7 9l5 3 5-3" />
+      <circle cx="12" cy="18" r="3" />
+      <path d="M12 15v-3" />
+      <path d="M7 9V6" />
+      <path d="M17 9V6" />
+    </svg>
+  )
+}
+
 export function IconCloudUpload(props) {
   return (
     <svg {...sv} {...props}>

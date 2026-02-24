@@ -5,6 +5,7 @@ various storage targets: local filesystem, Paperless-NGX, WebDAV,
 Google Drive, and SMB/CIFS shares.
 """
 
+import asyncio
 import os
 import glob
 import shutil
@@ -175,6 +176,30 @@ class PaperlessStorage(StorageBackend):
     def _headers(self) -> dict:
         return {"Authorization": f"Token {self._token}"}
 
+    async def _poll_task(self, session: aiohttp.ClientSession, task_id: str,
+                         max_wait: int = 30, interval: int = 2) -> int | None:
+        """Poll Paperless task endpoint until document ID is available."""
+        url = f"{self._url}/api/tasks/?task_id={task_id}"
+        elapsed = 0
+        while elapsed < max_wait:
+            try:
+                async with session.get(url, headers=self._headers(),
+                                       timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        results = data if isinstance(data, list) else data.get("results", [])
+                        for task in results:
+                            doc_id = task.get("related_document")
+                            if doc_id:
+                                return int(doc_id)
+                            if task.get("status") == "FAILURE":
+                                return None
+            except Exception:
+                pass
+            await asyncio.sleep(interval)
+            elapsed += interval
+        return None
+
     async def upload(self, export_dir: str, batch_id: str, batch_data: dict) -> dict:
         pdf_path = os.path.join(export_dir, "output.pdf")
         if not os.path.isfile(pdf_path):
@@ -204,11 +229,27 @@ class PaperlessStorage(StorageBackend):
                 async with session.post(url, data=data, headers=self._headers()) as resp:
                     if resp.status in (200, 201, 202):
                         body = await resp.text()
-                        return {
+                        task_id = body.strip().strip('"')
+
+                        # Poll for document ID
+                        document_id = None
+                        document_url = ""
+                        if task_id:
+                            document_id = await self._poll_task(session, task_id)
+                            if document_id:
+                                document_url = f"{self._url}/documents/{document_id}/details"
+
+                        result = {
                             "success": True,
-                            "message": f"Uploaded to Paperless-NGX (status {resp.status})",
-                            "path": url,
+                            "message": f"Uploaded to Paperless-NGX",
+                            "path": document_url or url,
                         }
+                        if task_id:
+                            result["task_id"] = task_id
+                        if document_id:
+                            result["document_id"] = document_id
+                            result["url"] = document_url
+                        return result
                     else:
                         text = await resp.text()
                         return {
@@ -218,6 +259,30 @@ class PaperlessStorage(StorageBackend):
                         }
         except Exception as exc:
             return {"success": False, "message": str(exc), "path": ""}
+
+    async def get_document_info(self, document_id: int) -> dict:
+        """Fetch document metadata from Paperless-NGX."""
+        try:
+            async with aiohttp.ClientSession() as session:
+                url = f"{self._url}/api/documents/{document_id}/"
+                async with session.get(url, headers=self._headers(),
+                                       timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        return {
+                            "success": True,
+                            "id": data.get("id"),
+                            "title": data.get("title", ""),
+                            "created": data.get("created", ""),
+                            "added": data.get("added", ""),
+                            "correspondent": data.get("correspondent"),
+                            "document_type": data.get("document_type"),
+                            "url": f"{self._url}/documents/{document_id}/details",
+                        }
+                    else:
+                        return {"success": False, "message": f"HTTP {resp.status}"}
+        except Exception as exc:
+            return {"success": False, "message": str(exc)}
 
     async def test_connection(self) -> dict:
         if not self._url:

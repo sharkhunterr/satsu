@@ -129,6 +129,41 @@ async def _check_api_key(x_api_key: str | None = None):
             raise HTTPException(status_code=403, detail="Invalid or missing API key")
 
 
+def _parse_user_agent(ua: str) -> str:
+    """Extract a human-readable device description from a User-Agent string."""
+    if not ua:
+        return ""
+    # Detect OS
+    os_name = "Unknown"
+    if "Android" in ua:
+        os_name = "Android"
+    elif "iPhone" in ua:
+        os_name = "iPhone"
+    elif "iPad" in ua:
+        os_name = "iPad"
+    elif "Macintosh" in ua or "Mac OS" in ua:
+        os_name = "macOS"
+    elif "Windows" in ua:
+        os_name = "Windows"
+    elif "CrOS" in ua:
+        os_name = "ChromeOS"
+    elif "Linux" in ua:
+        os_name = "Linux"
+    # Detect browser
+    browser = "Browser"
+    if "Firefox/" in ua:
+        browser = "Firefox"
+    elif "Edg/" in ua:
+        browser = "Edge"
+    elif "OPR/" in ua or "Opera/" in ua:
+        browser = "Opera"
+    elif "Chrome/" in ua and "Safari/" in ua:
+        browser = "Chrome"
+    elif "Safari/" in ua:
+        browser = "Safari"
+    return f"{browser} / {os_name}"
+
+
 def _parse_cursor(cursor: str | None) -> dict | None:
     if not cursor:
         return None
@@ -584,8 +619,13 @@ async def _process_batch(batch_id: str, profile_override: str = None):
                               source=f"batch:{batch_id}",
                               details={"duration_ms": duration_ms, "status": final_status})
 
-        # Auto-export if configured
-        if app_config.get("general", {}).get("auto_export") and final_status == "completed":
+        # Profile-driven storage: if profile has storage backends, use those
+        profile_storage = profile_options.get("storage", {})
+        profile_storage_backends = profile_storage.get("backends", []) if profile_storage.get("enabled") else []
+
+        if profile_storage_backends and final_status == "completed":
+            await _export_batch(batch_id, backend_names=profile_storage_backends)
+        elif app_config.get("general", {}).get("auto_export") and final_status == "completed":
             await _export_batch(batch_id)
 
     except Exception as e:
@@ -602,6 +642,7 @@ async def _process_batch(batch_id: str, profile_override: str = None):
 
 @app.post("/api/scan/web-upload", status_code=201)
 async def scan_web_upload(
+    request: Request,
     background_tasks: BackgroundTasks,
     files: list[UploadFile] = File(...),
     profile: str = Form("default"),
@@ -611,13 +652,14 @@ async def scan_web_upload(
     batch_id = _short_uuid()
     now = _now_iso()
     data_dir = get_data_dir()
+    device_info = _parse_user_agent(request.headers.get("user-agent", ""))
 
     db = await get_db()
     try:
         await db.execute(
-            """INSERT INTO batches (id, source_type, profile, page_count, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            (batch_id, source_type, profile, len(files), now, now),
+            """INSERT INTO batches (id, source_type, profile, page_count, device_info, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (batch_id, source_type, profile, len(files), device_info, now, now),
         )
 
         scan_dir = os.path.join(data_dir, "scans", batch_id, "original")
@@ -889,11 +931,23 @@ async def _export_batch(batch_id: str, backend_names: list[str] = None):
         export_results = {}
 
         for backend in backends:
+            step_start = time.time()
+            await manager.broadcast("storage_step", {
+                "batch_id": batch_id, "backend": backend.name, "status": "running",
+            })
             try:
                 result = await backend.upload(export_dir, batch_id, dict(batch))
+                result["duration_ms"] = int((time.time() - step_start) * 1000)
                 export_results[backend.name] = result
             except Exception as e:
-                export_results[backend.name] = {"success": False, "error": str(e)}
+                export_results[backend.name] = {
+                    "success": False, "error": str(e),
+                    "duration_ms": int((time.time() - step_start) * 1000),
+                }
+            await manager.broadcast("storage_step", {
+                "batch_id": batch_id, "backend": backend.name,
+                "status": "done" if export_results[backend.name].get("success") else "error",
+            })
 
         all_ok = all(r.get("success") for r in export_results.values())
         status = "completed" if all_ok else "export_failed"
@@ -966,6 +1020,30 @@ async def export_download(batch_id: str):
         return FileResponse(pdf_path, media_type="application/pdf",
                             filename=f"{batch_id}.pdf")
     raise HTTPException(404, "Export file not found")
+
+
+# ---------------------------------------------------------------------------
+# Storage info proxy endpoints
+# ---------------------------------------------------------------------------
+
+@app.get("/api/storage/paperless/{doc_id}")
+async def storage_paperless_document(doc_id: int):
+    """Proxy to Paperless-NGX to fetch document info dynamically."""
+    from storage import PaperlessStorage
+
+    backends_config = app_config.get("storage", {}).get("backends", [])
+    paperless_cfg = next(
+        (b for b in backends_config if b.get("type") == "paperless" and b.get("enabled", True)),
+        None,
+    )
+    if not paperless_cfg:
+        raise HTTPException(404, "No Paperless backend configured")
+
+    backend = PaperlessStorage(paperless_cfg)
+    result = await backend.get_document_info(doc_id)
+    if not result.get("success"):
+        raise HTTPException(502, result.get("message", "Failed to fetch document info"))
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -1279,7 +1357,11 @@ async def stats():
         c = await db.execute(
             "SELECT * FROM batches ORDER BY created_at DESC LIMIT 5",
         )
-        recent = [dict(r) for r in await c.fetchall()]
+        recent = []
+        for r in await c.fetchall():
+            d = dict(r)
+            d["export_info"] = json.loads(d.get("export_info") or "{}")
+            recent.append(d)
 
         c = await db.execute(
             "SELECT status, COUNT(*) as cnt FROM batches GROUP BY status",
@@ -1300,6 +1382,46 @@ async def stats():
         "status_counts": status_counts,
         "storage_backends": backends,
     }
+
+
+# ---------------------------------------------------------------------------
+# Firmware management — serves pre-compiled binary from repo
+# ---------------------------------------------------------------------------
+
+# Bundled firmware binary (in repo, compiled via PlatformIO)
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_BUNDLED_FIRMWARE = os.path.join(_REPO_ROOT, "esp32cam", "firmware", "espscancam.bin")
+
+
+def _find_firmware():
+    """Return path to firmware binary (bundled in repo)."""
+    if os.path.isfile(_BUNDLED_FIRMWARE):
+        return _BUNDLED_FIRMWARE
+    return None
+
+
+@app.get("/api/firmware/info")
+async def firmware_info():
+    """Return info about the available firmware binary."""
+    fw_path = _find_firmware()
+    if not fw_path:
+        return {"available": False}
+    stat = os.stat(fw_path)
+    return {
+        "available": True,
+        "size": stat.st_size,
+        "modified": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
+        "filename": "espscancam.bin",
+    }
+
+
+@app.get("/api/firmware/download")
+async def firmware_download():
+    """Download the firmware binary for flashing."""
+    fw_path = _find_firmware()
+    if not fw_path:
+        raise HTTPException(404, "No firmware binary available")
+    return FileResponse(fw_path, media_type="application/octet-stream", filename="espscancam.bin")
 
 
 # ---------------------------------------------------------------------------

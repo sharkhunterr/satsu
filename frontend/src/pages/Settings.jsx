@@ -119,6 +119,7 @@ function makeDefaultProfile() {
       bw_mode: { enabled: false, method: 'adaptive', block_size: 11, constant: 2 },
       output: { enabled: true, format: 'pdf', quality: 85, dpi: 300 },
     },
+    storage: { enabled: false, backends: [] },
   }
 }
 
@@ -281,8 +282,19 @@ export default function Settings() {
      ------------------------------------------------------------------ */
 
   const handleEditProfile = useCallback((profile) => {
-    setEditingProfile(profile.name)
-    setProfileDraft(JSON.parse(JSON.stringify(profile)))
+    setEditingProfile(profile.id || profile.name)
+    // Normalize: API returns `options`, frontend draft uses `steps`
+    const copy = JSON.parse(JSON.stringify(profile))
+    if (copy.options && !copy.steps) {
+      const { storage, ...pipelineSteps } = copy.options
+      copy.steps = pipelineSteps
+      copy.storage = storage || { enabled: false, backends: [] }
+      delete copy.options
+    }
+    if (!copy.storage) {
+      copy.storage = { enabled: false, backends: [] }
+    }
+    setProfileDraft(copy)
   }, [])
 
   const handleCreateProfile = useCallback(() => {
@@ -300,10 +312,16 @@ export default function Settings() {
         editingProfile === '__new__'
           ? '/api/settings/profiles'
           : `/api/settings/profiles/${encodeURIComponent(editingProfile)}`
+      // Convert steps → options for the API
+      const { steps, storage, ...rest } = profileDraft
+      const options = { ...steps }
+      if (storage && storage.enabled && storage.backends?.length > 0) {
+        options.storage = storage
+      }
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(profileDraft),
+        body: JSON.stringify({ ...rest, options }),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       toast.success('Profile saved')
@@ -334,9 +352,11 @@ export default function Settings() {
   const handleDuplicateProfile = useCallback(
     async (profile) => {
       try {
-        const copy = JSON.parse(JSON.stringify(profile))
-        copy.name = profile.name + ' (copy)'
-        copy.is_default = false
+        const copy = {
+          name: profile.name + ' (copy)',
+          is_default: false,
+          options: profile.options || profile.steps || {},
+        }
         const res = await fetch('/api/settings/profiles', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -848,11 +868,11 @@ export default function Settings() {
                     Duplicate
                   </button>
                   {!profile.is_default && (
-                    <button className="btn btn-secondary btn--sm" onClick={() => handleSetDefault(profile.name)}>
+                    <button className="btn btn-secondary btn--sm" onClick={() => handleSetDefault(profile.id)}>
                       Set Default
                     </button>
                   )}
-                  <button className="btn btn-danger btn--sm" onClick={() => handleDeleteProfile(profile.name)}>
+                  <button className="btn btn-danger btn--sm" onClick={() => handleDeleteProfile(profile.id)}>
                     Delete
                   </button>
                 </div>
@@ -866,7 +886,7 @@ export default function Settings() {
           <div className="dialog-overlay" onClick={(e) => { if (e.target === e.currentTarget) { setEditingProfile(null); setProfileDraft(null) } }} role="presentation">
             <div className="dialog" style={{ maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }}>
               <h2 className="dialog__title">
-                {editingProfile === '__new__' ? 'Create Profile' : `Edit: ${editingProfile}`}
+                {editingProfile === '__new__' ? 'Create Profile' : `Edit: ${profileDraft?.name || editingProfile}`}
               </h2>
 
               <div className="form-group">
@@ -901,6 +921,71 @@ export default function Settings() {
                   </div>
                 )
               })}
+
+              {/* Storage backends section */}
+              {(() => {
+                const enabledBackends = (settings.storage?.backends || []).filter((b) => b.enabled)
+                if (enabledBackends.length === 0) return null
+                const draftStorage = profileDraft.storage || { enabled: false, backends: [] }
+                const selectedBackends = draftStorage.backends || []
+                return (
+                  <>
+                    <h3 style={{ ...styles.sectionTitle, marginTop: 'var(--space-4)' }}>Storage</h3>
+                    <div style={styles.pipelineStep}>
+                      <label style={styles.toggleRow}>
+                        <span style={{ fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--text-sm)' }}>
+                          Enable auto-storage
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={draftStorage.enabled ?? false}
+                          onChange={(e) => setProfileDraft((prev) => ({
+                            ...prev,
+                            storage: { ...prev.storage, enabled: e.target.checked },
+                          }))}
+                        />
+                      </label>
+                      {draftStorage.enabled && (
+                        <div style={{ marginTop: 'var(--space-3)' }}>
+                          {enabledBackends.map((backend) => {
+                            const typeLabel = STORAGE_TYPES.find((t) => t.value === backend.type)?.label || backend.type
+                            const detail = backend.url || backend.path || backend.share || ''
+                            const isSelected = selectedBackends.includes(backend.type)
+                            return (
+                              <label key={backend.type} style={{
+                                display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
+                                padding: 'var(--space-2) 0', cursor: 'pointer',
+                              }}>
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={(e) => {
+                                    setProfileDraft((prev) => {
+                                      const current = prev.storage?.backends || []
+                                      const next = e.target.checked
+                                        ? [...current, backend.type]
+                                        : current.filter((b) => b !== backend.type)
+                                      return { ...prev, storage: { ...prev.storage, backends: next } }
+                                    })
+                                  }}
+                                />
+                                <span style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--font-weight-medium)' }}>
+                                  {typeLabel}
+                                </span>
+                                {detail && (
+                                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
+                                    ({detail})
+                                  </span>
+                                )}
+                              </label>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )
+              })()}
 
               <div className="dialog__actions" style={{ marginTop: 'var(--space-5)' }}>
                 <button className="btn btn-secondary" onClick={() => { setEditingProfile(null); setProfileDraft(null) }}>

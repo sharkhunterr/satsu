@@ -11,6 +11,38 @@ import { useToast } from '../components/shared/Toast'
    Helpers
    ========================================================================== */
 
+const STORAGE_LABELS = {
+  paperless: 'Paperless',
+  local: 'Local',
+  webdav: 'WebDAV',
+  gdrive: 'GDrive',
+  smb: 'SMB',
+}
+
+function ScanThumbnail({ batchId, fallback }) {
+  const [failed, setFailed] = useState(false)
+  if (failed) return <>{fallback}</>
+  return (
+    <img
+      src={`/api/image/processed/${batchId}/0`}
+      alt=""
+      loading="lazy"
+      onError={() => setFailed(true)}
+    />
+  )
+}
+
+function StorageBadges({ exportInfo }) {
+  if (!exportInfo || typeof exportInfo !== 'object') return null
+  const entries = Object.entries(exportInfo).filter(([, v]) => v && v.success)
+  if (entries.length === 0) return null
+  return entries.map(([name]) => (
+    <span key={name} className="badge badge-storage">
+      {STORAGE_LABELS[name] || name}
+    </span>
+  ))
+}
+
 function formatBytes(bytes) {
   if (bytes === 0) return '0 B'
   const k = 1024
@@ -334,16 +366,28 @@ export default function History() {
     )
   }, [])
 
+  const handleExportComplete = useCallback((data) => {
+    setScans((prev) =>
+      prev.map((s) =>
+        s.id === data.batch_id
+          ? { ...s, export_info: { ...(s.export_info || {}), ...data.results } }
+          : s,
+      ),
+    )
+  }, [])
+
   useEffect(() => {
     if (!ws?.subscribe) return
 
     const unsubs = [
       ws.subscribe('batch_created', handleBatchCreated),
       ws.subscribe('processing_complete', handleProcessingComplete),
+      ws.subscribe('export_complete', handleExportComplete),
+      ws.subscribe('export_error', handleExportComplete),
     ]
 
     return () => unsubs.forEach((unsub) => unsub())
-  }, [ws, handleBatchCreated, handleProcessingComplete])
+  }, [ws, handleBatchCreated, handleProcessingComplete, handleExportComplete])
 
   /* ------------------------------------------------------------------
      Event handlers
@@ -869,13 +913,18 @@ export default function History() {
                 />
               </div>
 
-              {/* Preview / source icon */}
+              {/* Preview / thumbnail */}
               <div className="scan-item__preview">
-                {scan.source_type === 'esp32cam'
-                  ? '\uD83D\uDCF7'
-                  : scan.source_type === 'web_camera'
-                    ? '\uD83D\uDCF1'
-                    : '\uD83D\uDCC1'}
+                <ScanThumbnail
+                  batchId={scan.id}
+                  fallback={
+                    scan.source_type === 'esp32cam'
+                      ? '\uD83D\uDCF7'
+                      : scan.source_type === 'web_camera'
+                        ? '\uD83D\uDCF1'
+                        : '\uD83D\uDCC1'
+                  }
+                />
               </div>
 
               {/* Body */}
@@ -888,14 +937,12 @@ export default function History() {
                     : 'Untitled'}
                 </div>
                 <div className="scan-item__meta">
-                  <span className={`badge ${statusBadgeClass(scan.status)}`}>
-                    {scan.status === 'export_failed' ? 'export failed' : scan.status}
-                  </span>
                   <span>{sourceLabel(scan.source_type)}</span>
-                  {scan.device_name && <span>{scan.device_name}</span>}
+                  {(scan.device_name || scan.device_info) && <span>{scan.device_name || scan.device_info}</span>}
                   <span>{scan.page_count ?? 0} pg</span>
                   {scan.file_size != null && <span>{formatBytes(scan.file_size)}</span>}
                   <span>{timeAgo(scan.created_at)}</span>
+                  <StorageBadges exportInfo={scan.export_info} />
                 </div>
               </div>
 

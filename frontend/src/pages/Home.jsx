@@ -14,6 +14,38 @@ import {
    Helpers
    ========================================================================== */
 
+const STORAGE_LABELS = {
+  paperless: 'Paperless',
+  local: 'Local',
+  webdav: 'WebDAV',
+  gdrive: 'GDrive',
+  smb: 'SMB',
+}
+
+function ScanThumbnail({ batchId, fallback }) {
+  const [failed, setFailed] = useState(false)
+  if (failed) return <>{fallback}</>
+  return (
+    <img
+      src={`/api/image/processed/${batchId}/0`}
+      alt=""
+      loading="lazy"
+      onError={() => setFailed(true)}
+    />
+  )
+}
+
+function StorageBadges({ exportInfo }) {
+  if (!exportInfo || typeof exportInfo !== 'object') return null
+  const entries = Object.entries(exportInfo).filter(([, v]) => v && v.success)
+  if (entries.length === 0) return null
+  return entries.map(([name]) => (
+    <span key={name} className="badge badge-storage">
+      {STORAGE_LABELS[name] || name}
+    </span>
+  ))
+}
+
 function formatBytes(bytes) {
   if (bytes === 0) return '0 B'
   const k = 1024
@@ -93,7 +125,7 @@ export default function Home() {
         if (cancelled) return
         setDevicesOnline(data.devices_online ?? 0)
         setTotalPages(data.total_pages ?? 0)
-        setStorageUsed(data.storage_used ?? 0)
+        setStorageUsed(data.total_size_bytes ?? 0)
         setRecentBatches(data.recent_batches ?? [])
       } catch {
         // Non-critical
@@ -140,6 +172,16 @@ export default function Home() {
     setDevicesOnline((prev) => Math.max(0, prev - 1))
   }, [])
 
+  const handleExportComplete = useCallback((data) => {
+    setRecentBatches((prev) =>
+      prev.map((b) =>
+        b.id === data.batch_id
+          ? { ...b, export_info: { ...(b.export_info || {}), ...data.results } }
+          : b,
+      ),
+    )
+  }, [])
+
   useEffect(() => {
     if (!ws?.subscribe) return
     const unsubs = [
@@ -148,9 +190,11 @@ export default function Home() {
       ws.subscribe('processing_error', handleProcessingError),
       ws.subscribe('device_online', handleDeviceOnline),
       ws.subscribe('device_offline', handleDeviceOffline),
+      ws.subscribe('export_complete', handleExportComplete),
+      ws.subscribe('export_error', handleExportComplete),
     ]
     return () => unsubs.forEach((fn) => fn())
-  }, [ws, handleBatchCreated, handleProcessingComplete, handleProcessingError, handleDeviceOnline, handleDeviceOffline])
+  }, [ws, handleBatchCreated, handleProcessingComplete, handleProcessingError, handleDeviceOnline, handleDeviceOffline, handleExportComplete])
 
   /* ------------------------------------------------------------------
      Sending overlay
@@ -322,7 +366,10 @@ export default function Home() {
                 className="scan-item"
               >
                 <div className="scan-item__preview">
-                  {sourceLabel(batch.source_type).charAt(0)}
+                  <ScanThumbnail
+                    batchId={batch.id}
+                    fallback={sourceLabel(batch.source_type).charAt(0)}
+                  />
                 </div>
                 <div className="scan-item__body">
                   <div className="scan-item__title">
@@ -339,6 +386,7 @@ export default function Home() {
                     <span>{sourceLabel(batch.source_type)}</span>
                     <span>{batch.page_count ?? 0} pages</span>
                     <span>{timeAgo(batch.created_at)}</span>
+                    <StorageBadges exportInfo={batch.export_info} />
                   </div>
                 </div>
               </Link>
