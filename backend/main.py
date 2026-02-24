@@ -37,14 +37,30 @@ from models import (
 class ConnectionManager:
     def __init__(self):
         self.active_connections: list[WebSocket] = []
+        self.station_connections: dict[str, WebSocket] = {}   # station_id -> ws
+        self.station_info: dict[str, dict] = {}               # station_id -> {station_id, name}
 
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
         self.active_connections.append(websocket)
 
-    def disconnect(self, websocket: WebSocket):
+    def disconnect(self, websocket: WebSocket) -> tuple[str | None, str]:
+        """Remove connection. Returns (station_id, name) if it was a station."""
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
+        for sid, ws in list(self.station_connections.items()):
+            if ws is websocket:
+                info = self.station_info.pop(sid, {})
+                del self.station_connections[sid]
+                return sid, info.get("name", "")
+        return None, ""
+
+    def register_station(self, station_id: str, name: str, websocket: WebSocket):
+        self.station_connections[station_id] = websocket
+        self.station_info[station_id] = {"station_id": station_id, "name": name}
+
+    def get_stations(self) -> list[dict]:
+        return list(self.station_info.values())
 
     async def broadcast(self, event: str, data: dict):
         message = {"event": event, "data": data, "timestamp": int(time.time() * 1000)}
@@ -56,6 +72,32 @@ class ConnectionManager:
                 dead.append(conn)
         for conn in dead:
             self.disconnect(conn)
+
+    async def broadcast_to_viewers(self, event: str, data: dict):
+        """Broadcast to all connections except station connections."""
+        station_ws = set(self.station_connections.values())
+        message = {"event": event, "data": data, "timestamp": int(time.time() * 1000)}
+        dead = []
+        for conn in self.active_connections:
+            if conn in station_ws:
+                continue
+            try:
+                await conn.send_json(message)
+            except Exception:
+                dead.append(conn)
+        for conn in dead:
+            self.disconnect(conn)
+
+    async def send_to_station(self, station_id: str, event: str, data: dict) -> bool:
+        ws = self.station_connections.get(station_id)
+        if not ws:
+            return False
+        message = {"event": event, "data": data, "timestamp": int(time.time() * 1000)}
+        try:
+            await ws.send_json(message)
+            return True
+        except Exception:
+            return False
 
 
 manager = ConnectionManager()
@@ -251,11 +293,55 @@ async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
         while True:
-            # Keep connection alive, handle client messages if needed
             data = await websocket.receive_text()
-            # Client can send ping/pong or commands in the future
+            try:
+                msg = json.loads(data)
+            except json.JSONDecodeError:
+                continue
+
+            msg_type = msg.get("type")
+
+            if msg_type == "station_register":
+                sid = msg.get("station_id", "")
+                name = msg.get("name", "Web Station")
+                if sid:
+                    manager.register_station(sid, name, websocket)
+                    await manager.broadcast_to_viewers("station_online", {
+                        "station_id": sid, "name": name,
+                    })
+
+            elif msg_type == "station_preview":
+                sid = msg.get("station_id", "")
+                if sid:
+                    await manager.broadcast_to_viewers("station_preview", {
+                        "station_id": sid,
+                        "frame": msg.get("frame", ""),
+                    })
+
+            elif msg_type == "station_status":
+                sid = msg.get("station_id", "")
+                if sid:
+                    await manager.broadcast_to_viewers("station_status", {
+                        "station_id": sid,
+                        "captureCount": msg.get("captureCount", 0),
+                        "torchOn": msg.get("torchOn", False),
+                        "sending": msg.get("sending", False),
+                    })
+
+            elif msg_type == "station_command":
+                sid = msg.get("station_id", "")
+                command = msg.get("command", "")
+                if sid and command:
+                    await manager.send_to_station(sid, "station_command", {
+                        "command": command,
+                    })
+
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
+        sid, name = manager.disconnect(websocket)
+        if sid:
+            await manager.broadcast("station_offline", {
+                "station_id": sid, "name": name,
+            })
 
 
 # ---------------------------------------------------------------------------
@@ -412,6 +498,16 @@ async def device_config_push(mac: str, body: DeviceConfigPush):
 
 
 # ---------------------------------------------------------------------------
+# Station endpoints
+# ---------------------------------------------------------------------------
+
+@app.get("/api/stations")
+async def stations_list():
+    """List currently connected scanning stations."""
+    return manager.get_stations()
+
+
+# ---------------------------------------------------------------------------
 # Scan endpoints
 # ---------------------------------------------------------------------------
 
@@ -512,6 +608,56 @@ async def scan_process(batch_id: str, background_tasks: BackgroundTasks,
     return {"status": "processing", "batch_id": batch_id}
 
 
+async def _merge_batch_pdf(batch_id: str, page_count: int, profile_options: dict):
+    """Merge individual page outputs into a single output.pdf for storage backends."""
+    from PIL import Image
+
+    data_dir = get_data_dir()
+    processed_dir = os.path.join(data_dir, "scans", batch_id, "processed")
+    output_opts = profile_options.get("output", {})
+    fmt = output_opts.get("format", "pdf")
+    dpi = output_opts.get("dpi", 300)
+    quality = output_opts.get("quality", 85)
+
+    output_path = os.path.join(processed_dir, "output.pdf")
+
+    if fmt != "pdf":
+        # For non-PDF formats, nothing to merge for storage backends
+        return
+
+    # Single page: just copy the individual PDF
+    if page_count == 1:
+        single = os.path.join(processed_dir, "0.pdf")
+        if os.path.isfile(single):
+            shutil.copy2(single, output_path)
+        return
+
+    # Multi-page: use the JPEG preview images to build a combined PDF.
+    # The scanner saves {page_index}.jpg alongside each {page_index}.pdf.
+    page_images = []
+    for i in range(page_count):
+        jpg_path = os.path.join(processed_dir, f"{i}.jpg")
+        if os.path.isfile(jpg_path):
+            page_images.append(jpg_path)
+
+    if not page_images:
+        return
+
+    images = []
+    first = None
+    try:
+        first = Image.open(page_images[0]).convert("RGB")
+        for path in page_images[1:]:
+            images.append(Image.open(path).convert("RGB"))
+        first.save(output_path, "PDF", resolution=dpi, quality=quality,
+                   save_all=True, append_images=images)
+    finally:
+        for img in images:
+            img.close()
+        if first:
+            first.close()
+
+
 async def _process_batch(batch_id: str, profile_override: str = None):
     """Background task: process all pages in a batch."""
     from scanner import process_page, get_profile_options
@@ -605,6 +751,10 @@ async def _process_batch(batch_id: str, profile_override: str = None):
                 await app_logger.error("processing", f"Error processing page {page_index}: {e}",
                                        source=f"batch:{batch_id}",
                                        details={"page_index": page_index, "error": str(e)})
+
+        # Merge individual page PDFs into a single output.pdf
+        if all_ok and page_count > 0:
+            await _merge_batch_pdf(batch_id, page_count, profile_options)
 
         duration_ms = int((time.time() - start_time) * 1000)
         final_status = "completed" if all_ok else "error"

@@ -130,6 +130,20 @@ export function useWebSocket() {
   }, [scheduleReconnect])
 
   /**
+   * Send a JSON message to the server.
+   *
+   * @param {object} data – object to JSON-stringify and send
+   * @returns {boolean} true if the message was sent
+   */
+  const send = useCallback((data) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify(data))
+      return true
+    }
+    return false
+  }, [])
+
+  /**
    * Subscribe to a named event (or '*' for all events).
    *
    * @param {string}   event    – event name to listen for
@@ -173,5 +187,5 @@ export function useWebSocket() {
     }
   }, [connect])
 
-  return { connected, lastEvent, subscribe }
+  return { connected, lastEvent, subscribe, send }
 }

@@ -14,6 +14,7 @@ import Devices from './pages/Devices'
 import Logs from './pages/Logs'
 import Settings from './pages/Settings'
 import About from './pages/About'
+import Station from './pages/Station'
 
 import './styles/variables.css'
 import './styles/layout.css'
@@ -125,6 +126,9 @@ function SettingsPage() {
 function AboutPage() {
   return <About />
 }
+function StationPage() {
+  return <Station />
+}
 
 /* ==========================================================================
    Route-to-title map (used by TopBar)
@@ -148,6 +152,7 @@ function AppLayout() {
   const location = useLocation()
   const navigate = useNavigate()
   const ws = useWS()
+  const isKiosk = location.pathname === '/station'
 
   /* Keyboard shortcuts (T111) */
   useEffect(() => {
@@ -175,6 +180,15 @@ function AppLayout() {
     if (location.pathname.startsWith('/history/')) return 'Scan Detail'
     return 'ESPScanCam'
   }, [location.pathname])
+
+  // Station page is a kiosk — no sidebar, topbar, or bottom nav
+  if (isKiosk) {
+    return (
+      <Routes>
+        <Route path="/station" element={<StationPage />} />
+      </Routes>
+    )
+  }
 
   return (
     <div className={`app-layout${sidebarExpanded ? ' app-layout--sidebar-expanded' : ''}`}>

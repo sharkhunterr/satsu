@@ -6,7 +6,7 @@ import ConfirmDialog from '../components/shared/ConfirmDialog'
 import Spinner from '../components/shared/Spinner'
 import EmptyState from '../components/shared/EmptyState'
 import FlashModal from '../components/devices/FlashModal'
-import { IconFlash } from '../components/shared/Icons'
+import { IconFlash, IconFlashOff, IconStation, IconCamera, IconSwitchCamera } from '../components/shared/Icons'
 
 /* ==========================================================================
    Helpers
@@ -518,6 +518,88 @@ function DeviceCard({ device, onUpdate, onDelete }) {
 }
 
 /* ==========================================================================
+   Station Card
+   ========================================================================== */
+
+function StationCard({ station, preview, status, onCommand }) {
+  const captureCount = status?.captureCount ?? 0
+  const torchOn = status?.torchOn ?? false
+  const isSending = status?.sending ?? false
+
+  return (
+    <div className="card station-card">
+      <div className="station-card__header">
+        <span className="station-status-dot station-status-dot--online" />
+        <span className="station-card__name">{station.name || station.station_id}</span>
+        {captureCount > 0 && (
+          <span className="station-card__badge">{captureCount} pending</span>
+        )}
+      </div>
+
+      <div className="station-card__preview">
+        {preview ? (
+          <img src={preview} alt="Live preview" className="station-card__preview-img" />
+        ) : (
+          <div className="station-card__no-preview">
+            <IconCamera style={{ fontSize: 24, opacity: 0.4 }} />
+            <span>Waiting for preview...</span>
+          </div>
+        )}
+      </div>
+
+      <div className="station-card__actions">
+        <button
+          className="btn btn-primary btn--sm"
+          onClick={() => onCommand(station.station_id, 'capture')}
+          type="button"
+          title="Capture"
+        >
+          <IconCamera style={{ fontSize: '1em' }} /> Capture
+        </button>
+        <button
+          className={`btn btn--sm ${torchOn ? 'btn-warning' : 'btn-secondary'}`}
+          onClick={() => onCommand(station.station_id, torchOn ? 'torch_off' : 'torch_on')}
+          type="button"
+          title={torchOn ? 'Turn off torch' : 'Turn on torch'}
+        >
+          {torchOn ? <IconFlash style={{ fontSize: '1em' }} /> : <IconFlashOff style={{ fontSize: '1em' }} />}
+          {torchOn ? ' On' : ' Off'}
+        </button>
+        <button
+          className="btn btn-secondary btn--sm"
+          onClick={() => onCommand(station.station_id, 'switch_camera')}
+          type="button"
+          title="Switch camera"
+        >
+          <IconSwitchCamera style={{ fontSize: '1em' }} /> Flip
+        </button>
+      </div>
+
+      {captureCount > 0 && (
+        <div className="station-card__send-row">
+          <button
+            className="btn btn-primary btn--sm"
+            onClick={() => onCommand(station.station_id, 'send')}
+            disabled={isSending}
+            type="button"
+          >
+            {isSending ? 'Sending...' : `Send ${captureCount}`}
+          </button>
+          <button
+            className="btn btn-secondary btn--sm"
+            onClick={() => onCommand(station.station_id, 'clear')}
+            disabled={isSending}
+            type="button"
+          >
+            Clear
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ==========================================================================
    Devices Page
    ========================================================================== */
 
@@ -528,6 +610,11 @@ export default function Devices() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [flashOpen, setFlashOpen] = useState(false)
+
+  // ---- Scanning stations ----
+  const [stations, setStations] = useState([])
+  const [stationPreviews, setStationPreviews] = useState({})
+  const [stationStatus, setStationStatus] = useState({}) // station_id -> {captureCount, torchOn, sending}
 
   /* ------------------------------------------------------------------
      Fetch devices
@@ -557,6 +644,17 @@ export default function Devices() {
     return () => {
       cancelled = true
     }
+  }, [])
+
+  /* ------------------------------------------------------------------
+     Fetch stations
+     ------------------------------------------------------------------ */
+
+  useEffect(() => {
+    fetch('/api/stations')
+      .then((r) => r.json())
+      .then((data) => setStations(Array.isArray(data) ? data : []))
+      .catch(() => {})
   }, [])
 
   /* ------------------------------------------------------------------
@@ -601,16 +699,63 @@ export default function Devices() {
     )
   }, [])
 
+  // ---- Station WS handlers ----
+
+  const handleStationOnline = useCallback((data) => {
+    setStations((prev) => {
+      const exists = prev.find((s) => s.station_id === data.station_id)
+      if (exists) return prev.map((s) => s.station_id === data.station_id ? { ...s, ...data } : s)
+      return [...prev, data]
+    })
+  }, [])
+
+  const handleStationOffline = useCallback((data) => {
+    setStations((prev) => prev.filter((s) => s.station_id !== data.station_id))
+    setStationPreviews((prev) => {
+      const next = { ...prev }
+      delete next[data.station_id]
+      return next
+    })
+    setStationStatus((prev) => {
+      const next = { ...prev }
+      delete next[data.station_id]
+      return next
+    })
+  }, [])
+
+  const handleStationPreview = useCallback((data) => {
+    setStationPreviews((prev) => ({ ...prev, [data.station_id]: data.frame }))
+  }, [])
+
+  const handleStationStatusUpdate = useCallback((data) => {
+    setStationStatus((prev) => ({
+      ...prev,
+      [data.station_id]: {
+        captureCount: data.captureCount ?? 0,
+        torchOn: data.torchOn ?? false,
+        sending: data.sending ?? false,
+      },
+    }))
+  }, [])
+
+  const sendStationCommand = useCallback((stationId, command) => {
+    ws?.send?.({ type: 'station_command', station_id: stationId, command })
+  }, [ws])
+
   useEffect(() => {
     if (!ws?.subscribe) return
 
     const unsubs = [
       ws.subscribe('device_online', handleDeviceOnline),
       ws.subscribe('device_offline', handleDeviceOffline),
+      ws.subscribe('station_online', handleStationOnline),
+      ws.subscribe('station_offline', handleStationOffline),
+      ws.subscribe('station_preview', handleStationPreview),
+      ws.subscribe('station_status', handleStationStatusUpdate),
     ]
 
     return () => unsubs.forEach((unsub) => unsub())
-  }, [ws, handleDeviceOnline, handleDeviceOffline])
+  }, [ws, handleDeviceOnline, handleDeviceOffline, handleStationOnline, handleStationOffline, handleStationPreview, handleStationStatusUpdate])
 
   /* ------------------------------------------------------------------
      Card callbacks
@@ -680,6 +825,67 @@ export default function Devices() {
 
       {/* Flash modal */}
       <FlashModal open={flashOpen} onClose={() => setFlashOpen(false)} />
+
+      {/* ---- Scanning Stations ---- */}
+      {stations.length > 0 && (
+        <section style={{ marginBottom: 'var(--space-6)' }}>
+          <h2 style={{
+            fontSize: 'var(--text-base)',
+            fontWeight: 'var(--font-weight-semibold)',
+            marginBottom: 'var(--space-3)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'var(--space-2)',
+          }}>
+            <IconStation style={{ fontSize: '1.2em' }} />
+            Scanning Stations
+          </h2>
+          <div className="devices-grid" style={{
+            display: 'grid',
+            gap: 'var(--space-4)',
+            gridTemplateColumns: '1fr',
+          }}>
+            {stations.map((station) => (
+              <StationCard
+                key={station.station_id}
+                station={station}
+                preview={stationPreviews[station.station_id]}
+                status={stationStatus[station.station_id]}
+                onCommand={sendStationCommand}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Station setup hint */}
+      <div style={{
+        padding: 'var(--space-3) var(--space-4)',
+        marginBottom: 'var(--space-4)',
+        borderRadius: 'var(--radius-md)',
+        backgroundColor: 'var(--color-surface-raised)',
+        fontSize: 'var(--text-sm)',
+        color: 'var(--color-text-secondary)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 'var(--space-3)',
+        flexWrap: 'wrap',
+      }}>
+        <IconStation style={{ fontSize: '1.5em', flexShrink: 0, opacity: 0.6 }} />
+        <div>
+          <strong>Scanning Station:</strong> Open{' '}
+          <code style={{
+            padding: '2px 6px',
+            borderRadius: 'var(--radius-sm)',
+            backgroundColor: 'var(--color-surface)',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 'var(--text-xs)',
+          }}>{window.location.origin}/station</code>{' '}
+          on a phone or tablet to use it as a dedicated scanner controlled from here.
+        </div>
+      </div>
+
+      {/* ---- ESP32-CAM Devices ---- */}
 
       {devices.length === 0 ? (
         <EmptyState
