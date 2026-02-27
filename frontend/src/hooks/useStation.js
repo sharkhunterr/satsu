@@ -39,6 +39,9 @@ export function useStation() {
   // Accumulated capture blobs (not yet sent)
   const [pendingCaptures, setPendingCaptures] = useState([])
 
+  // Crop zone calibration (set remotely from Devices page)
+  const [cropZone, setCropZone] = useState(null) // null | Array<{x,y}>
+
   const cameraRef = useRef(camera)
   cameraRef.current = camera
   const doCaptureRef = useRef(null)
@@ -52,6 +55,8 @@ export function useStation() {
   stationIdRef.current = stationId
   const pendingCapturesRef = useRef(pendingCaptures)
   pendingCapturesRef.current = pendingCaptures
+  const cropZoneRef = useRef(cropZone)
+  cropZoneRef.current = cropZone
 
   // ---- Broadcast station status to viewers ----
   const broadcastStatus = useCallback((overrides = {}) => {
@@ -63,6 +68,7 @@ export function useStation() {
       captureCount: overrides.captureCount ?? pendingCapturesRef.current.length,
       torchOn: overrides.torchOn ?? cameraRef.current.torchOn ?? false,
       sending: overrides.sending ?? false,
+      cropZone: cropZoneRef.current,
     })
   }, [])
 
@@ -70,7 +76,7 @@ export function useStation() {
   useEffect(() => {
     if (!registered) return
     broadcastStatus()
-  }, [registered, pendingCaptures.length, camera.torchOn, broadcastStatus])
+  }, [registered, pendingCaptures.length, camera.torchOn, cropZone, broadcastStatus])
 
   // ---- Fetch profiles ----
   useEffect(() => {
@@ -176,6 +182,16 @@ export function useStation() {
       formData.append('source_type', 'web_station')
       formData.append('profile', selectedProfileRef.current)
 
+      // Include crop zone for all pages if calibration is set
+      const currentCropZone = cropZoneRef.current
+      if (currentCropZone) {
+        const cropMap = {}
+        captures.forEach((_, i) => {
+          cropMap[String(i)] = { points: currentCropZone }
+        })
+        formData.append('crop_data', JSON.stringify(cropMap))
+      }
+
       const res = await fetch('/api/scan/web-upload', {
         method: 'POST',
         body: formData,
@@ -227,6 +243,13 @@ export function useStation() {
         doSendRef.current?.()
       } else if (cmd === 'clear') {
         doClearRef.current?.()
+      } else if (cmd === 'set_crop_zone') {
+        const points = data.payload?.points
+        if (points && Array.isArray(points) && points.length === 4) {
+          setCropZone(points)
+        }
+      } else if (cmd === 'clear_crop_zone') {
+        setCropZone(null)
       }
     })
   }, [ws?.subscribe])
@@ -288,6 +311,7 @@ export function useStation() {
     doCapture,
     doSend,
     doClear,
+    cropZone,
     profiles,
     selectedProfile,
     setSelectedProfile,

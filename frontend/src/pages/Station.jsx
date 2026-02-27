@@ -15,7 +15,7 @@ export default function Station() {
   const {
     camera, stationName, setStationName, registered, capturing,
     captureCount, pendingCaptures, sending, lastError, wakeLockActive,
-    doCapture, doSend, doClear,
+    doCapture, doSend, doClear, cropZone,
     profiles, selectedProfile, setSelectedProfile,
   } = station
 
@@ -199,6 +199,11 @@ export default function Station() {
               {captureCount} total
             </span>
           )}
+          {cropZone && (
+            <span className="station-topbar__badge" style={{ background: 'rgba(59, 130, 246, 0.3)', color: '#93bbfc' }}>
+              Crop
+            </span>
+          )}
         </div>
       </div>
 
@@ -212,6 +217,26 @@ export default function Station() {
           className="station-video"
         />
         {capturing && <div className="station-flash" />}
+        {/* Crop zone overlay */}
+        {cropZone && cropZone.length === 4 && (
+          <svg
+            className="station-crop-overlay"
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
+          >
+            <polygon
+              points={cropZone.map((p) => `${p.x * 100},${p.y * 100}`).join(' ')}
+              fill="none"
+              stroke="#3b82f6"
+              strokeWidth="0.5"
+              strokeDasharray="2 1.5"
+            />
+            {cropZone.map((p, i) => (
+              <circle key={i} cx={p.x * 100} cy={p.y * 100} r="1" fill="#3b82f6" />
+            ))}
+          </svg>
+        )}
         {/* Loading state while camera is starting */}
         {!camera.isActive && !camera.error && (
           <div className="station-viewfinder__loading">Starting camera...</div>

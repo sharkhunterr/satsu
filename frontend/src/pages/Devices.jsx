@@ -6,6 +6,7 @@ import ConfirmDialog from '../components/shared/ConfirmDialog'
 import Spinner from '../components/shared/Spinner'
 import EmptyState from '../components/shared/EmptyState'
 import FlashModal from '../components/devices/FlashModal'
+import StationCropModal from '../components/devices/StationCropModal'
 import { IconFlash, IconFlashOff, IconStation, IconCamera, IconSwitchCamera } from '../components/shared/Icons'
 
 /* ==========================================================================
@@ -521,16 +522,18 @@ function DeviceCard({ device, onUpdate, onDelete }) {
    Station Card
    ========================================================================== */
 
-function StationCard({ station, preview, status, onCommand }) {
+function StationCard({ station, preview, status, onCommand, onOpenCrop, onClearCrop }) {
   const captureCount = status?.captureCount ?? 0
   const torchOn = status?.torchOn ?? false
   const isSending = status?.sending ?? false
+  const cropZone = status?.cropZone ?? null
 
   return (
     <div className="card station-card">
       <div className="station-card__header">
         <span className="station-status-dot station-status-dot--online" />
         <span className="station-card__name">{station.name || station.station_id}</span>
+        {cropZone && <span className="station-card__badge" style={{ background: 'var(--color-primary)' }}>Crop</span>}
         {captureCount > 0 && (
           <span className="station-card__badge">{captureCount} pending</span>
         )}
@@ -544,6 +547,44 @@ function StationCard({ station, preview, status, onCommand }) {
             <IconCamera style={{ fontSize: 24, opacity: 0.4 }} />
             <span>Waiting for preview...</span>
           </div>
+        )}
+        {/* Crop zone overlay on preview */}
+        {preview && cropZone && (
+          <svg
+            viewBox="0 0 1 1"
+            preserveAspectRatio="none"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              pointerEvents: 'none',
+            }}
+          >
+            <defs>
+              <mask id={`crop-mask-${station.station_id}`}>
+                <rect x="0" y="0" width="1" height="1" fill="white" />
+                <polygon
+                  points={cropZone.map((p) => `${p.x},${p.y}`).join(' ')}
+                  fill="black"
+                />
+              </mask>
+            </defs>
+            <rect
+              x="0" y="0" width="1" height="1"
+              fill="rgba(0,0,0,0.4)"
+              mask={`url(#crop-mask-${station.station_id})`}
+            />
+            <polygon
+              points={cropZone.map((p) => `${p.x},${p.y}`).join(' ')}
+              fill="none"
+              stroke="#3b82f6"
+              strokeWidth="0.005"
+            />
+            {cropZone.map((p, i) => (
+              <circle key={i} cx={p.x} cy={p.y} r="0.015" fill="#3b82f6" stroke="#fff" strokeWidth="0.004" />
+            ))}
+          </svg>
         )}
       </div>
 
@@ -573,6 +614,28 @@ function StationCard({ station, preview, status, onCommand }) {
         >
           <IconSwitchCamera style={{ fontSize: '1em' }} /> Flip
         </button>
+      </div>
+
+      <div className="station-card__actions">
+        <button
+          className="btn btn-secondary btn--sm"
+          onClick={() => onOpenCrop(station.station_id)}
+          disabled={!preview}
+          type="button"
+          title="Set crop zone"
+        >
+          {cropZone ? 'Edit Crop' : 'Set Crop'}
+        </button>
+        {cropZone && (
+          <button
+            className="btn btn-secondary btn--sm"
+            onClick={() => onClearCrop(station.station_id)}
+            type="button"
+            title="Clear crop zone"
+          >
+            Reset Crop
+          </button>
+        )}
       </div>
 
       {captureCount > 0 && (
@@ -614,7 +677,11 @@ export default function Devices() {
   // ---- Scanning stations ----
   const [stations, setStations] = useState([])
   const [stationPreviews, setStationPreviews] = useState({})
-  const [stationStatus, setStationStatus] = useState({}) // station_id -> {captureCount, torchOn, sending}
+  const [stationStatus, setStationStatus] = useState({}) // station_id -> {captureCount, torchOn, sending, cropZone}
+
+  // ---- Crop calibration modal ----
+  const [cropModalStation, setCropModalStation] = useState(null)  // station_id or null
+  const [cropModalFrame, setCropModalFrame] = useState(null)       // frozen preview data URL
 
   /* ------------------------------------------------------------------
      Fetch devices
@@ -734,12 +801,15 @@ export default function Devices() {
         captureCount: data.captureCount ?? 0,
         torchOn: data.torchOn ?? false,
         sending: data.sending ?? false,
+        cropZone: data.cropZone ?? null,
       },
     }))
   }, [])
 
-  const sendStationCommand = useCallback((stationId, command) => {
-    ws?.send?.({ type: 'station_command', station_id: stationId, command })
+  const sendStationCommand = useCallback((stationId, command, payload) => {
+    const msg = { type: 'station_command', station_id: stationId, command }
+    if (payload !== undefined) msg.payload = payload
+    ws?.send?.(msg)
   }, [ws])
 
   useEffect(() => {
@@ -756,6 +826,34 @@ export default function Devices() {
 
     return () => unsubs.forEach((unsub) => unsub())
   }, [ws, handleDeviceOnline, handleDeviceOffline, handleStationOnline, handleStationOffline, handleStationPreview, handleStationStatusUpdate])
+
+  /* ------------------------------------------------------------------
+     Crop zone handlers
+     ------------------------------------------------------------------ */
+
+  const handleOpenCropModal = useCallback((stationId) => {
+    const frame = stationPreviews[stationId]
+    if (!frame) return
+    setCropModalFrame(frame)
+    setCropModalStation(stationId)
+  }, [stationPreviews])
+
+  const handleCropConfirm = useCallback((points) => {
+    if (cropModalStation) {
+      sendStationCommand(cropModalStation, 'set_crop_zone', { points })
+    }
+    setCropModalStation(null)
+    setCropModalFrame(null)
+  }, [cropModalStation, sendStationCommand])
+
+  const handleCropCancel = useCallback(() => {
+    setCropModalStation(null)
+    setCropModalFrame(null)
+  }, [])
+
+  const handleClearCrop = useCallback((stationId) => {
+    sendStationCommand(stationId, 'clear_crop_zone')
+  }, [sendStationCommand])
 
   /* ------------------------------------------------------------------
      Card callbacks
@@ -808,15 +906,25 @@ export default function Devices() {
       <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
           <h1 className="page-header__title" style={{ margin: 0 }}>Devices</h1>
-          <button
-            className="btn btn-primary btn--sm"
-            onClick={() => setFlashOpen(true)}
-            type="button"
-            style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)' }}
-          >
-            <IconFlash style={{ fontSize: '1em' }} />
-            Flash ESP32-CAM
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+            <Link
+              to="/station"
+              className="btn btn-primary btn--sm"
+              style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)' }}
+            >
+              <IconStation style={{ fontSize: '1em' }} />
+              Station
+            </Link>
+            <button
+              className="btn btn-secondary btn--sm"
+              onClick={() => setFlashOpen(true)}
+              type="button"
+              style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)' }}
+            >
+              <IconFlash style={{ fontSize: '1em' }} />
+              Flash ESP
+            </button>
+          </div>
         </div>
         <p className="page-header__description">
           Manage your ESP32-CAM devices, configure settings, and monitor connection status.
@@ -825,6 +933,15 @@ export default function Devices() {
 
       {/* Flash modal */}
       <FlashModal open={flashOpen} onClose={() => setFlashOpen(false)} />
+
+      {/* Station crop calibration modal */}
+      <StationCropModal
+        open={cropModalStation !== null}
+        frameDataUrl={cropModalFrame}
+        initialPoints={cropModalStation ? stationStatus[cropModalStation]?.cropZone : null}
+        onConfirm={handleCropConfirm}
+        onCancel={handleCropCancel}
+      />
 
       {/* ---- Scanning Stations ---- */}
       {stations.length > 0 && (
@@ -852,6 +969,8 @@ export default function Devices() {
                 preview={stationPreviews[station.station_id]}
                 status={stationStatus[station.station_id]}
                 onCommand={sendStationCommand}
+                onOpenCrop={handleOpenCropModal}
+                onClearCrop={handleClearCrop}
               />
             ))}
           </div>

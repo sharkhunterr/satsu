@@ -326,15 +326,18 @@ async def websocket_endpoint(websocket: WebSocket):
                         "captureCount": msg.get("captureCount", 0),
                         "torchOn": msg.get("torchOn", False),
                         "sending": msg.get("sending", False),
+                        "cropZone": msg.get("cropZone"),
                     })
 
             elif msg_type == "station_command":
                 sid = msg.get("station_id", "")
                 command = msg.get("command", "")
                 if sid and command:
-                    await manager.send_to_station(sid, "station_command", {
-                        "command": command,
-                    })
+                    relay_data = {"command": command}
+                    payload = msg.get("payload")
+                    if payload is not None:
+                        relay_data["payload"] = payload
+                    await manager.send_to_station(sid, "station_command", relay_data)
 
     except WebSocketDisconnect:
         sid, name = manager.disconnect(websocket)
