@@ -1,6 +1,6 @@
 # Stats API Contract
 
-> **ESPScanCam API — Dashboard Statistics**
+> **Satsu API — Dashboard Statistics**
 
 ## Conventions
 

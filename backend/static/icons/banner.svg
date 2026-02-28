@@ -55,11 +55,15 @@
     <circle cx="256" cy="64" r="6" fill="#3b82f6" opacity="0.5"/>
   </g>
   <!-- Title text -->
-  <text x="380" y="148" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="72" font-weight="700" fill="url(#textGrad)" letter-spacing="-1">
-    ESP<tspan fill="#3b82f6">Scan</tspan>Cam
+  <text x="380" y="138" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="84" font-weight="700" fill="url(#textGrad)" letter-spacing="-1">
+    Satsu
+  </text>
+  <!-- Kanji accent -->
+  <text x="648" y="128" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="36" fill="#3b82f6" opacity="0.5">
+    撮
   </text>
   <!-- Subtitle -->
-  <text x="383" y="198" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="22" fill="#6b7294" letter-spacing="3">
+  <text x="383" y="188" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="22" fill="#6b7294" letter-spacing="3">
     SELF-HOSTED DOCUMENT SCANNER
   </text>
   <!-- Feature badges -->

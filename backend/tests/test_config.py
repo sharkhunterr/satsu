@@ -8,9 +8,9 @@ from config import load_config, save_config, DEFAULT_CONFIG, _deep_merge
 
 class TestDefaults:
     def test_load_returns_defaults_when_no_file(self):
-        os.environ["ESPSCANCAM_DATA_DIR"] = tempfile.mkdtemp()
+        os.environ["SATSU_DATA_DIR"] = tempfile.mkdtemp()
         config = load_config()
-        assert config["general"]["server_name"] == "ESPScanCam"
+        assert config["general"]["server_name"] == "Satsu"
         assert config["system"]["port"] == 8400
         assert config["logs"]["min_level"] == "INFO"
 
@@ -40,12 +40,12 @@ class TestDeepMerge:
 
 class TestEnvOverrides:
     def test_port_override(self):
-        os.environ["ESPSCANCAM_PORT"] = "9999"
+        os.environ["SATSU_PORT"] = "9999"
         try:
             config = load_config()
             assert config["system"]["port"] == 9999
         finally:
-            del os.environ["ESPSCANCAM_PORT"]
+            del os.environ["SATSU_PORT"]
 
 class TestCorruptConfig:
     def test_corrupted_json_falls_back_to_defaults(self, data_dir):
@@ -53,7 +53,7 @@ class TestCorruptConfig:
         with open(config_path, "w") as f:
             f.write("{invalid json!!!")
         config = load_config()
-        assert config["general"]["server_name"] == "ESPScanCam"
+        assert config["general"]["server_name"] == "Satsu"
 
 class TestSaveConfig:
     def test_save_and_reload(self, data_dir):

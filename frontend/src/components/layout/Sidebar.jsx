@@ -18,7 +18,7 @@ export default function Sidebar({ expanded, onToggle }) {
   return (
     <aside className="sidebar">
       <div className="sidebar__header">
-        <span className="sidebar__logo">ESPScanCam</span>
+        <span className="sidebar__logo">Satsu</span>
         <button
           className="sidebar__toggle"
           onClick={onToggle}
@@ -49,7 +49,7 @@ export default function Sidebar({ expanded, onToggle }) {
       </nav>
 
       <div className="sidebar__footer">
-        ESPScanCam v1.0
+        Satsu v1.0
       </div>
     </aside>
   )

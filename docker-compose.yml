@@ -1,14 +1,14 @@
 services:
-  espscancam:
+  satsu:
     build: .
     ports:
       - "8400:8400"
     volumes:
-      - espscancam-data:/data
+      - satsu-data:/data
     environment:
       - TZ=Europe/Paris
-      - ESPSCANCAM_LOG_LEVEL=INFO
+      - SATSU_LOG_LEVEL=INFO
     restart: unless-stopped
 
 volumes:
-  espscancam-data:
+  satsu-data:

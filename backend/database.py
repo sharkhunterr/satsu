@@ -4,7 +4,7 @@ import os
 import aiosqlite
 from config import get_data_dir
 
-DB_PATH = os.path.join(get_data_dir(), "espscancam.db")
+DB_PATH = os.path.join(get_data_dir(), "satsu.db")
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS devices (

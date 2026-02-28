@@ -1,6 +1,6 @@
 # Logs API Contract
 
-> **ESPScanCam API — Log Management**
+> **Satsu API — Log Management**
 
 ## Conventions
 
@@ -213,7 +213,7 @@ GET /api/logs/export?level[]=ERROR&format=json HTTP/1.1
 ```http
 HTTP/1.1 200 OK
 Content-Type: text/plain
-Content-Disposition: attachment; filename="espscancam-logs-2026-02-23.log"
+Content-Disposition: attachment; filename="satsu-logs-2026-02-23.log"
 ```
 
 ```
@@ -227,7 +227,7 @@ Content-Disposition: attachment; filename="espscancam-logs-2026-02-23.log"
 ```http
 HTTP/1.1 200 OK
 Content-Type: application/json
-Content-Disposition: attachment; filename="espscancam-logs-2026-02-23.json"
+Content-Disposition: attachment; filename="satsu-logs-2026-02-23.json"
 ```
 
 ```json

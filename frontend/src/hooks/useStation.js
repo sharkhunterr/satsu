@@ -15,16 +15,16 @@ export function useStation() {
   const camera = useCamera()
 
   const [stationId] = useState(() => {
-    let id = localStorage.getItem('espscancam-station-id')
+    let id = localStorage.getItem('satsu-station-id')
     if (!id) {
       id = crypto.randomUUID?.() || (Date.now().toString(36) + Math.random().toString(36).slice(2, 8))
-      localStorage.setItem('espscancam-station-id', id)
+      localStorage.setItem('satsu-station-id', id)
     }
     return id
   })
 
   const [stationName, setStationNameState] = useState(() => {
-    return localStorage.getItem('espscancam-station-name') || ''
+    return localStorage.getItem('satsu-station-name') || ''
   })
 
   const [registered, setRegistered] = useState(false)
@@ -293,7 +293,7 @@ export function useStation() {
   // ---- Update station name ----
   const setStationName = useCallback((name) => {
     setStationNameState(name)
-    localStorage.setItem('espscancam-station-name', name)
+    localStorage.setItem('satsu-station-name', name)
   }, [])
 
   return {

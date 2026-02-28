@@ -1,4 +1,4 @@
-"""Storage backend implementations for ESPScanCam.
+"""Storage backend implementations for Satsu.
 
 Provides pluggable backends for exporting processed scan batches to
 various storage targets: local filesystem, Paperless-NGX, WebDAV,

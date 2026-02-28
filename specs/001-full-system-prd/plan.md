@@ -1,11 +1,11 @@
-# Implementation Plan: ESPScanCam — Self-Hosted Document Scanning System
+# Implementation Plan: Satsu — Self-Hosted Document Scanning System
 
 **Branch**: `001-full-system-prd` | **Date**: 2026-02-23 | **Spec**: [spec.md](./spec.md)
 **Input**: Feature specification from `/specs/001-full-system-prd/spec.md`
 
 ## Summary
 
-ESPScanCam is a 3-layer self-hosted document scanning system: ESP32-CAM
+Satsu is a 3-layer self-hosted document scanning system: ESP32-CAM
 hardware + web browser capture → Python/FastAPI backend with OpenCV processing
 pipeline → React 18 mobile-first SPA. Deployed as a single Docker container
 with SQLite WAL storage. Exports to local, Paperless-NGX, WebDAV, Google
@@ -15,7 +15,7 @@ Drive, and SMB backends. All communication is real-time via WebSocket.
 
 **Language/Version**: Python 3.11+ (backend), JavaScript/JSX (React 18 frontend), Arduino C++ (ESP32-CAM firmware)
 **Primary Dependencies**: FastAPI, uvicorn, OpenCV (headless), Pillow, aiohttp, aiofiles, pydantic v2 (backend); React 18, Vite (frontend); esp_camera, WiFi, HTTPClient, ArduinoJson (firmware)
-**Storage**: SQLite WAL mode (`/data/espscancam.db`), filesystem (`/data/scans/`), JSON config (`/data/config.json`)
+**Storage**: SQLite WAL mode (`/data/satsu.db`), filesystem (`/data/scans/`), JSON config (`/data/config.json`)
 **Testing**: pytest + FastAPI TestClient (backend), Playwright multi-viewport (frontend), PlatformIO + mock server (firmware)
 **Target Platform**: Linux Docker container (amd64 + arm64), ESP32-CAM (Xtensa LX6)
 **Project Type**: Web application + IoT firmware (3-layer architecture)
@@ -64,7 +64,7 @@ specs/001-full-system-prd/
 
 ```text
 esp32cam/
-├── espscancam.ino           # Main firmware sketch
+├── satsu.ino           # Main firmware sketch
 ├── config.example.h         # WiFi + server URL template
 ├── led.h                    # LED pattern functions
 └── buttons.h                # Button debounce + handlers

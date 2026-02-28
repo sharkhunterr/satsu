@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="frontend/public/icons/banner.svg" alt="ESPScanCam Banner" width="800"/>
+<img src="frontend/public/icons/banner.svg" alt="Satsu Banner" width="800"/>
 
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
@@ -19,9 +19,9 @@
 
 ---
 
-## What is ESPScanCam?
+## What is Satsu?
 
-ESPScanCam is a **self-hosted document scanning system** that turns an ESP32-CAM module or any phone/tablet into a dedicated scanner. Captured images go through an 8-step OpenCV processing pipeline and are exported to your storage of choice — Paperless-ngx, WebDAV, Google Drive, SMB, or local filesystem.
+Satsu is a **self-hosted document scanning system** that turns an ESP32-CAM module or any phone/tablet into a dedicated scanner. Captured images go through an 8-step OpenCV processing pipeline and are exported to your storage of choice — Paperless-ngx, WebDAV, Google Drive, SMB, or local filesystem.
 
 **Perfect for:**
 - Homelab owners wanting a physical scan button on their desk
@@ -102,19 +102,19 @@ ESPScanCam is a **self-hosted document scanning system** that turns an ESP32-CAM
 
 ```yaml
 services:
-  espscancam:
-    image: espscancam:latest
-    container_name: espscancam
+  satsu:
+    image: satsu:latest
+    container_name: satsu
     ports:
       - "8400:8400"
     volumes:
-      - espscancam-data:/data
+      - satsu-data:/data
     environment:
       - TZ=Europe/Paris
     restart: unless-stopped
 
 volumes:
-  espscancam-data:
+  satsu-data:
 ```
 
 ```bash
@@ -127,11 +127,11 @@ docker compose up -d
 
 ```bash
 docker run -d \
-  --name espscancam \
+  --name satsu \
   -p 8400:8400 \
-  -v espscancam-data:/data \
+  -v satsu-data:/data \
   -e TZ=Europe/Paris \
-  espscancam:latest
+  satsu:latest
 ```
 
 ### Build from Source
@@ -142,7 +142,7 @@ cd frontend && npm install && npm run build
 
 # Backend
 cd backend && pip install -r requirements.txt
-ESPSCANCAM_DATA_DIR=/data uvicorn main:app --host 0.0.0.0 --port 8400
+SATSU_DATA_DIR=/data uvicorn main:app --host 0.0.0.0 --port 8400
 ```
 
 ---
@@ -153,9 +153,9 @@ ESPSCANCAM_DATA_DIR=/data uvicorn main:app --host 0.0.0.0 --port 8400
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ESPSCANCAM_DATA_DIR` | `/data` | Persistent data directory |
-| `ESPSCANCAM_PORT` | `8400` | Server port |
-| `ESPSCANCAM_LOG_LEVEL` | `INFO` | Log level (DEBUG, INFO, WARNING, ERROR) |
+| `SATSU_DATA_DIR` | `/data` | Persistent data directory |
+| `SATSU_PORT` | `8400` | Server port |
+| `SATSU_LOG_LEVEL` | `INFO` | Log level (DEBUG, INFO, WARNING, ERROR) |
 | `TZ` | `UTC` | Container timezone |
 
 ### First Launch
@@ -172,7 +172,7 @@ ESPSCANCAM_DATA_DIR=/data uvicorn main:app --host 0.0.0.0 --port 8400
 <summary><b>Paperless-ngx</b></summary>
 
 1. Open Paperless-ngx admin, create an API token
-2. In ESPScanCam Settings → Storage, select **Paperless-ngx**
+2. In Satsu Settings → Storage, select **Paperless-ngx**
 3. Enter URL: `http://your-paperless:8000`
 4. Enter API token
 5. Click **Test Connection**
@@ -182,7 +182,7 @@ ESPSCANCAM_DATA_DIR=/data uvicorn main:app --host 0.0.0.0 --port 8400
 <details>
 <summary><b>WebDAV (Nextcloud, etc.)</b></summary>
 
-1. In ESPScanCam Settings → Storage, select **WebDAV**
+1. In Satsu Settings → Storage, select **WebDAV**
 2. Enter WebDAV URL (e.g. `https://nextcloud.example.com/remote.php/dav/files/user/Scans/`)
 3. Enter username & password
 4. Click **Test Connection**
@@ -194,7 +194,7 @@ ESPSCANCAM_DATA_DIR=/data uvicorn main:app --host 0.0.0.0 --port 8400
 
 1. Create a GCP service account with Drive API enabled
 2. Download the JSON credentials file
-3. In ESPScanCam Settings → Storage, select **Google Drive**
+3. In Satsu Settings → Storage, select **Google Drive**
 4. Paste the service account JSON
 5. Specify the target folder ID
 
@@ -203,7 +203,7 @@ ESPSCANCAM_DATA_DIR=/data uvicorn main:app --host 0.0.0.0 --port 8400
 <details>
 <summary><b>SMB/CIFS</b></summary>
 
-1. In ESPScanCam Settings → Storage, select **SMB**
+1. In Satsu Settings → Storage, select **SMB**
 2. Enter server address, share name, path
 3. Enter credentials (domain optional)
 4. Click **Test Connection**
@@ -315,9 +315,9 @@ sequenceDiagram
 ## Project Structure
 
 ```
-espscancam/
+satsu/
 ├── esp32cam/                    # ESP32-CAM Arduino firmware
-│   ├── espscancam.ino           # Main sketch
+│   ├── satsu.ino           # Main sketch
 │   ├── config.example.h         # WiFi + server URL template
 │   ├── led.h                    # LED patterns
 │   └── buttons.h                # Button handlers
@@ -367,7 +367,7 @@ espscancam/
 
 | Path | Content |
 |------|---------|
-| `/data/espscancam.db` | SQLite database (devices, batches, pages, logs, profiles) |
+| `/data/satsu.db` | SQLite database (devices, batches, pages, logs, profiles) |
 | `/data/config.json` | All settings and storage backend credentials |
 | `/data/scans/` | Raw uploads and processed outputs |
 | `/data/exports/` | Generated PDFs for export |
@@ -385,7 +385,7 @@ Settings can be exported and imported from **Settings → Backup**. This include
 cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-ESPSCANCAM_DATA_DIR=/tmp/espscancam-data uvicorn main:app --reload --host 0.0.0.0 --port 8400
+SATSU_DATA_DIR=/tmp/satsu-data uvicorn main:app --reload --host 0.0.0.0 --port 8400
 
 # Frontend (separate terminal)
 cd frontend

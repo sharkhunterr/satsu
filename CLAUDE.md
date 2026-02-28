@@ -1,4 +1,4 @@
-# ESPScanCam Development Guidelines
+# Satsu Development Guidelines
 
 Auto-generated from all feature plans. Last updated: 2026-02-23
 
@@ -6,7 +6,7 @@ Auto-generated from all feature plans. Last updated: 2026-02-23
 
 - **Language**: Python 3.11+ (backend), JavaScript/JSX (React 18 frontend), Arduino C++ (ESP32-CAM firmware)
 - **Framework**: FastAPI, uvicorn, OpenCV (headless), Pillow, aiohttp, aiofiles, pydantic v2 (backend); React 18, Vite (frontend); esp_camera, WiFi, HTTPClient, ArduinoJson (firmware)
-- **Database**: SQLite WAL mode (`/data/espscancam.db`), filesystem (`/data/scans/`), JSON config (`/data/config.json`)
+- **Database**: SQLite WAL mode (`/data/satsu.db`), filesystem (`/data/scans/`), JSON config (`/data/config.json`)
 - **Testing**: pytest + FastAPI TestClient (backend), Playwright multi-viewport (frontend), PlatformIO (firmware)
 - **Container**: Docker multi-stage (Node.js build + Python runtime), multi-arch amd64/arm64
 - **Real-time**: WebSocket (native browser API, FastAPI WebSocket endpoint)
@@ -14,9 +14,9 @@ Auto-generated from all feature plans. Last updated: 2026-02-23
 ## Project Structure
 
 ```text
-espscancam/
+satsu/
 ├── esp32cam/
-│   ├── espscancam.ino           # Main firmware sketch
+│   ├── satsu.ino           # Main firmware sketch
 │   ├── config.example.h         # WiFi + server URL template
 │   ├── led.h                    # LED pattern functions
 │   └── buttons.h                # Button debounce + handlers
@@ -61,7 +61,7 @@ espscancam/
 cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-ESPSCANCAM_DATA_DIR=/tmp/espscancam-data uvicorn main:app --reload --host 0.0.0.0 --port 8400
+SATSU_DATA_DIR=/tmp/satsu-data uvicorn main:app --reload --host 0.0.0.0 --port 8400
 
 # Frontend development
 cd frontend
@@ -75,8 +75,8 @@ cd backend && pytest tests/ -v
 cd frontend && npx playwright test
 
 # Docker build
-docker build -t espscancam .
-docker run -d -p 8400:8400 -v espscancam-data:/data espscancam
+docker build -t satsu .
+docker run -d -p 8400:8400 -v satsu-data:/data satsu
 
 # ESP32-CAM firmware (PlatformIO)
 cd esp32cam && cp config.example.h config.h && pio run --target upload

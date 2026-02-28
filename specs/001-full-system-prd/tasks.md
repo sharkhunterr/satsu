@@ -1,4 +1,4 @@
-# Tasks: ESPScanCam — Self-Hosted Document Scanning System
+# Tasks: Satsu — Self-Hosted Document Scanning System
 
 **Input**: Design documents from `/specs/001-full-system-prd/`
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/
@@ -22,7 +22,7 @@
 - [X] T001 Create root project structure: `backend/`, `frontend/`, `esp32cam/`, `Dockerfile`, `docker-compose.yml`, `.gitignore`
 - [X] T002 [P] Initialize backend Python project with `backend/requirements.txt` (fastapi, uvicorn, opencv-python-headless, Pillow, aiohttp, aiofiles, aiosqlite, pydantic>=2.0, python-multipart)
 - [X] T003 [P] Initialize frontend React 18 project with Vite in `frontend/` (`npm create vite@latest . -- --template react`, install react-router-dom)
-- [X] T004 [P] Create ESP32-CAM firmware skeleton: `esp32cam/espscancam.ino`, `esp32cam/config.example.h`, `esp32cam/led.h`, `esp32cam/buttons.h`
+- [X] T004 [P] Create ESP32-CAM firmware skeleton: `esp32cam/satsu.ino`, `esp32cam/config.example.h`, `esp32cam/led.h`, `esp32cam/buttons.h`
 - [X] T005 [P] Create `Dockerfile` with multi-stage build (Node.js 20-alpine for frontend, Python 3.11-slim for runtime) per research.md R10
 - [X] T006 [P] Create `docker-compose.yml` with single service, port 8400, volume `/data`
 
@@ -36,7 +36,7 @@
 
 ### Backend Core
 
-- [X] T007 Implement configuration management in `backend/config.py` — load `/data/config.json` with env var overrides (`ESPSCANCAM_*`), defaults on corruption (FR-063, FR-066)
+- [X] T007 Implement configuration management in `backend/config.py` — load `/data/config.json` with env var overrides (`SATSU_*`), defaults on corruption (FR-063, FR-066)
 - [X] T008 Implement SQLite WAL database layer in `backend/database.py` — connection pool with `aiosqlite`, pragmas (WAL, busy_timeout=5000, foreign_keys=ON), schema init with all 5 tables per data-model.md DDL
 - [X] T009 Implement structured logging system in `backend/logger.py` — write to SQLite `logs` table, levels (DEBUG/INFO/WARNING/ERROR/CRITICAL), categories (system/capture/processing/storage/api/websocket/device/config), broadcast to WebSocket
 - [X] T010 Define all Pydantic v2 request/response models in `backend/models.py` — DeviceRegister, BatchCreate, PageResponse, BatchResponse, BatchList, LogEntry, ProfileCreate, SettingsResponse, StatsResponse, ErrorResponse
@@ -111,11 +111,11 @@
 
 ### Firmware — US2
 
-- [X] T047 [P] [US2] Implement WiFi connection and server registration in `esp32cam/espscancam.ino` — boot, connect WiFi from config.h, POST /api/device/register with MAC/IP/firmware/resolution, heartbeat every 60s, LED fast blink (connecting), slow blink (registering), solid ON (idle)
+- [X] T047 [P] [US2] Implement WiFi connection and server registration in `esp32cam/satsu.ino` — boot, connect WiFi from config.h, POST /api/device/register with MAC/IP/firmware/resolution, heartbeat every 60s, LED fast blink (connecting), slow blink (registering), solid ON (idle)
 - [X] T048 [P] [US2] Implement LED patterns in `esp32cam/led.h` — fast blink (connecting), slow blink (registering), solid ON (idle), quick flash xN (captured page N), rapid pulse (uploading), double blink (processing), 3 slow blinks (success), SOS (error), all non-blocking via millis()
 - [X] T049 [P] [US2] Implement button handling in `esp32cam/buttons.h` — 3 GPIO buttons with 300ms debounce: SCAN (capture frame to PSRAM), SEND (upload batch + trigger process), RESET (clear captured frames)
-- [X] T050 [US2] Implement capture and upload flow in `esp32cam/espscancam.ino` — SCAN: flash LED + `esp_camera_fb_get()` + store in PSRAM buffer array (up to max_pages), SEND: create batch → upload each page sequentially as raw JPEG → POST process trigger → LED feedback, RESET: clear buffer + reset count
-- [X] T051 [US2] Implement error handling and retry in `esp32cam/espscancam.ino` — upload retry 3x with 1s delay (FR-071), SOS LED on persistent failure, WiFi reconnect on disconnect, config update reception on heartbeat response
+- [X] T050 [US2] Implement capture and upload flow in `esp32cam/satsu.ino` — SCAN: flash LED + `esp_camera_fb_get()` + store in PSRAM buffer array (up to max_pages), SEND: create batch → upload each page sequentially as raw JPEG → POST process trigger → LED feedback, RESET: clear buffer + reset count
+- [X] T051 [US2] Implement error handling and retry in `esp32cam/satsu.ino` — upload retry 3x with 1s delay (FR-071), SOS LED on persistent failure, WiFi reconnect on disconnect, config update reception on heartbeat response
 
 ### Frontend — US2
 
@@ -313,7 +313,7 @@
 
 ### PWA
 
-- [X] T106 [P] Create PWA manifest in `frontend/public/manifest.json` — name "ESPScanCam", icons (192px, 512px), theme_color, display: standalone
+- [X] T106 [P] Create PWA manifest in `frontend/public/manifest.json` — name "Satsu", icons (192px, 512px), theme_color, display: standalone
 - [X] T107 [P] Implement service worker in `frontend/src/sw.js` — cache-first for static assets (JS, CSS, HTML, icons), network-first for API calls, register in index.html
 - [X] T108 [P] Create PWA icons in `frontend/public/icons/` — 192x192 and 512x512 PNG icons
 

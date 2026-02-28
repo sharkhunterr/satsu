@@ -1,6 +1,6 @@
 # Device API Contract
 
-> **ESPScanCam API — Device Management**
+> **Satsu API — Device Management**
 
 ## Conventions
 

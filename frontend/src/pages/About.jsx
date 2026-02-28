@@ -92,7 +92,7 @@ export default function About() {
     <div className="main-content__inner">
       {/* Page header */}
       <div className="page-header" style={{ textAlign: 'center' }}>
-        <h1 className="page-header__title">ESPScanCam</h1>
+        <h1 className="page-header__title">Satsu</h1>
         <p className="page-header__description" style={{ marginBottom: 'var(--space-1)' }}>
           Self-hosted document scanning system
         </p>
@@ -153,7 +153,7 @@ export default function About() {
 
           <div style={styles.linkList}>
             <a
-              href="https://github.com/user/espscancam"
+              href="https://github.com/user/satsu"
               target="_blank"
               rel="noopener noreferrer"
               style={styles.link}
@@ -163,7 +163,7 @@ export default function About() {
             </a>
 
             <a
-              href="https://github.com/user/espscancam/wiki"
+              href="https://github.com/user/satsu/wiki"
               target="_blank"
               rel="noopener noreferrer"
               style={styles.link}

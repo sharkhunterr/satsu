@@ -189,7 +189,7 @@ export default function FlashModal({ open, onClose }) {
     let buffer = ''
 
     try {
-      // Wait for ESPSCANCAM_READY
+      // Wait for SATSU_READY
       const deadline = Date.now() + 10000
       let gotReady = false
       while (Date.now() < deadline && !gotReady) {
@@ -199,7 +199,7 @@ export default function FlashModal({ open, onClose }) {
         ])
         if (value) {
           buffer += decoder.decode(value, { stream: true })
-          if (buffer.includes('ESPSCANCAM_READY') || buffer.includes('ESPSCANCAM_TIMEOUT')) {
+          if (buffer.includes('SATSU_READY') || buffer.includes('SATSU_TIMEOUT')) {
             gotReady = true
             addLog('Device ready for config')
           }
@@ -224,11 +224,11 @@ export default function FlashModal({ open, onClose }) {
         ])
         if (value) {
           buffer += decoder.decode(value, { stream: true })
-          if (buffer.includes('ESPSCANCAM_OK')) {
+          if (buffer.includes('SATSU_OK')) {
             confirmed = true
             addLog('Config saved! Device rebooting...', 'success')
           }
-          if (buffer.includes('ESPSCANCAM_ERROR')) {
+          if (buffer.includes('SATSU_ERROR')) {
             addLog('Device reported config error', 'error')
             break
           }
@@ -236,7 +236,7 @@ export default function FlashModal({ open, onClose }) {
         if (done && !value) break
       }
 
-      if (!confirmed && !buffer.includes('ESPSCANCAM_ERROR')) {
+      if (!confirmed && !buffer.includes('SATSU_ERROR')) {
         addLog('Config sent (no confirmation). Device should apply it on reboot.', 'warn')
       }
 

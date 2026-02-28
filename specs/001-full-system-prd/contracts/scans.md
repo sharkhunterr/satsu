@@ -1,6 +1,6 @@
 # Scans API Contract
 
-> **ESPScanCam API — Scan Batch Management**
+> **Satsu API — Scan Batch Management**
 
 ## Conventions
 

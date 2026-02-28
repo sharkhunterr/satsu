@@ -1,8 +1,8 @@
-# ESPScanCam -- Developer Quickstart
+# Satsu -- Developer Quickstart
 
 This guide helps new contributors get the project running locally for development and testing.
 
-ESPScanCam is a self-hosted document scanning system composed of three layers:
+Satsu is a self-hosted document scanning system composed of three layers:
 
 1. **ESP32-CAM firmware** (Arduino C++) -- hardware scanner that captures and uploads images.
 2. **Backend** (Python 3.11+, FastAPI, OpenCV headless, SQLite WAL) -- REST API, image processing pipeline, and storage.
@@ -27,7 +27,7 @@ In production the entire stack ships as a single Docker container on port **8400
 ## Repository Structure
 
 ```
-espscancam/
+satsu/
 ├── esp32cam/          # Arduino firmware (PlatformIO project)
 ├── backend/           # FastAPI + OpenCV processing pipeline
 ├── frontend/          # React 18 SPA (Vite)
@@ -47,11 +47,11 @@ source .venv/bin/activate
 pip install -r requirements.txt
 
 # Create the data directory tree
-mkdir -p /tmp/espscancam-data/{scans,processed,exports}
+mkdir -p /tmp/satsu-data/{scans,processed,exports}
 
 # Run with development settings
-ESPSCANCAM_DATA_DIR=/tmp/espscancam-data \
-ESPSCANCAM_LOG_LEVEL=DEBUG \
+SATSU_DATA_DIR=/tmp/satsu-data \
+SATSU_LOG_LEVEL=DEBUG \
 uvicorn main:app --reload --host 0.0.0.0 --port 8400
 ```
 
@@ -90,33 +90,33 @@ pio run --target upload
 
 ```bash
 # Build the image
-docker build -t espscancam .
+docker build -t satsu .
 
 # Run the container
 docker run -d \
-  --name espscancam \
+  --name satsu \
   -p 8400:8400 \
-  -v espscancam-data:/data \
+  -v satsu-data:/data \
   -e TZ=Europe/Paris \
-  espscancam
+  satsu
 ```
 
 ### Using docker-compose
 
 ```yaml
 services:
-  espscancam:
+  satsu:
     build: .
     ports:
       - "8400:8400"
     volumes:
-      - espscancam-data:/data
+      - satsu-data:/data
     environment:
       - TZ=Europe/Paris
     restart: unless-stopped
 
 volumes:
-  espscancam-data:
+  satsu-data:
 ```
 
 ```bash
@@ -159,17 +159,17 @@ pio test
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ESPSCANCAM_PORT` | `8400` | HTTP listen port |
-| `ESPSCANCAM_DATA_DIR` | `/data` | Root data directory for DB, scans, and exports |
-| `ESPSCANCAM_LOG_LEVEL` | `INFO` | Minimum log level (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
-| `ESPSCANCAM_BASE_PATH` | `/` | URL base path (useful behind a reverse proxy) |
+| `SATSU_PORT` | `8400` | HTTP listen port |
+| `SATSU_DATA_DIR` | `/data` | Root data directory for DB, scans, and exports |
+| `SATSU_LOG_LEVEL` | `INFO` | Minimum log level (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
+| `SATSU_BASE_PATH` | `/` | URL base path (useful behind a reverse proxy) |
 | `TZ` | `UTC` | Container timezone |
 
 ---
 
 ## Database
 
-SQLite in WAL mode, stored at `{ESPSCANCAM_DATA_DIR}/espscancam.db`.
+SQLite in WAL mode, stored at `{SATSU_DATA_DIR}/satsu.db`.
 
 The schema auto-migrates on every startup. Key pragmas applied at connection time:
 

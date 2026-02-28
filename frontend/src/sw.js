@@ -1,4 +1,4 @@
-const CACHE_NAME = 'espscancam-v1'
+const CACHE_NAME = 'satsu-v1'
 const STATIC_ASSETS = [
   '/',
   '/index.html',

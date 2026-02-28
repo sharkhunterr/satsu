@@ -1,4 +1,4 @@
-"""OpenCV processing pipeline for ESPScanCam — CamScanner-quality document scanning.
+"""OpenCV processing pipeline for Satsu — CamScanner-quality document scanning.
 
 Detection inspired by SwiftCamScanner (multi-channel + multi-threshold)
 and suhren/camscan (Hough lines, sharpen + adaptive threshold).

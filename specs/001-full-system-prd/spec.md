@@ -1,13 +1,13 @@
-# Feature Specification: ESPScanCam — Self-Hosted Document Scanning System
+# Feature Specification: Satsu — Self-Hosted Document Scanning System
 
 **Feature Branch**: `001-full-system-prd`
 **Created**: 2026-02-23
 **Status**: Draft
-**Input**: Complete system PRD for ESPScanCam
+**Input**: Complete system PRD for Satsu
 
 ## Executive Summary
 
-ESPScanCam is a 100% self-hosted document scanning solution designed for the
+Satsu is a 100% self-hosted document scanning solution designed for the
 homelab ecosystem (*arr family). It combines unlimited ESP32-CAM hardware
 scanners with browser-based camera capture and file upload, an intelligent
 OpenCV image processing pipeline, and automated multi-backend export — all
@@ -42,7 +42,7 @@ self-hosted in a single Docker container.
 
 - **Profile**: Technical user, manages their own server (Unraid, Proxmox),
   familiar with the *arr ecosystem (Sonarr, Radarr), values data sovereignty.
-- **Goals**: Install ESPScanCam via Docker, configure storage backends
+- **Goals**: Install Satsu via Docker, configure storage backends
   (Paperless-NGX, Nextcloud), tune processing parameters, monitor logs. Owns
   1-3 ESP32-CAM devices placed around the house.
 - **Pain points**: Cloud-dependent apps violate privacy. Existing self-hosted
@@ -79,7 +79,7 @@ self-hosted in a single Docker container.
 
 ### User Story 1 — Smartphone Camera Scan (Priority: P1)
 
-As a Family member, I open ESPScanCam in my mobile browser, tap "Scanner", my
+As a Family member, I open Satsu in my mobile browser, tap "Scanner", my
 camera opens full-screen. I point at a document, tap the capture button, add
 2 more pages, tap "Send". The document is processed and appears in the history.
 
@@ -136,7 +136,7 @@ pages and "completed" status within 30 seconds.
 
 ### User Story 3 — File Upload Batch (Priority: P2)
 
-As a user with 10 receipt photos on my phone, I open ESPScanCam, select all
+As a user with 10 receipt photos on my phone, I open Satsu, select all
 photos from my gallery, reorder them, and submit. They are processed as a
 single batch.
 
@@ -195,7 +195,7 @@ As a Homelabber, I configure Paperless-NGX as my primary backend and a local
 folder as backup. Every completed scan is automatically exported to both.
 If Paperless is down, the scan is saved locally and I can retry the export.
 
-**Why this priority**: Export is what makes scans useful beyond ESPScanCam. It
+**Why this priority**: Export is what makes scans useful beyond Satsu. It
 connects to the user's existing document management ecosystem.
 
 **Independent Test**: Configure two backends (local + Paperless-NGX mock).
@@ -295,11 +295,11 @@ actions.
 
 ### User Story 9 — Exhaustive Settings (Priority: P3)
 
-As a Homelabber, I configure every aspect of ESPScanCam from the Settings page:
+As a Homelabber, I configure every aspect of Satsu from the Settings page:
 theme, default processing profile, storage backends with connection tests,
 log retention, and system backup. Every change is applied immediately.
 
-**Why this priority**: Full configurability differentiates ESPScanCam from
+**Why this priority**: Full configurability differentiates Satsu from
 simpler tools and satisfies power users.
 
 **Independent Test**: Change theme to dark, modify CLAHE parameters, add a
@@ -521,7 +521,7 @@ heartbeats.
 - **FR-062**: Settings changes MUST be applied immediately without server
   restart (except port changes).
 - **FR-063**: Settings MUST be stored in `/data/config.json` with environment
-  variable overrides (prefix: `ESPSCANCAM_`).
+  variable overrides (prefix: `SATSU_`).
 - **FR-064**: A "Reset to Defaults" function MUST restore all settings to their
   factory values.
 - **FR-065**: System MUST provide configuration backup (download JSON) and
@@ -543,7 +543,7 @@ heartbeats.
   Server considers device offline after 180 seconds of silence.
 - **FR-071**: Device MUST retry uploads 3 times with 1-second delay on failure.
 - **FR-072**: Device MUST be remotely configurable (resolution, quality, flash)
-  via the ESPScanCam web interface.
+  via the Satsu web interface.
 - **FR-072b**: System MUST support an optional shared API key (Settings >
   System). When enabled, all ESP32-CAM requests without a valid `X-API-Key`
   header MUST be rejected with HTTP 403. Disabled by default.
@@ -587,7 +587,7 @@ heartbeats.
 
 ```
 ┌──────────────────────────┐
-│  ESPScanCam    [bell]    │
+│  Satsu    [bell]    │
 ├──────────────────────────┤
 │ ┌──────────┐┌──────────┐ │
 │ │ 147      ││ 3        │ │
@@ -872,7 +872,7 @@ heartbeats.
 ├──────────────────────────┤
 │ v General                │
 │                          │
-│ App Name: [ESPScanCam  ] │
+│ App Name: [Satsu  ] │
 │ Theme:    [Auto       v] │
 │ Language: [English    v] │
 │                          │
@@ -1141,7 +1141,7 @@ Indexes: timestamp, level, category, device_mac
 - **Container**: Single Docker image, multi-stage build (Node.js frontend
   build + Python runtime).
 - **Architectures**: linux/amd64, linux/arm64.
-- **Port**: 8400 (configurable via `ESPSCANCAM_PORT`).
+- **Port**: 8400 (configurable via `SATSU_PORT`).
 - **Volume**: `/data` — contains database, config, scans, processed images.
 - **Image size target**: < 500MB.
 - **Health check**: `GET /api/stats` returns 200.
@@ -1155,10 +1155,10 @@ Indexes: timestamp, level, category, device_mac
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| ESPSCANCAM_PORT | 8400 | Listen port |
-| ESPSCANCAM_DATA_DIR | /data | Data directory |
-| ESPSCANCAM_LOG_LEVEL | INFO | Minimum log level |
-| ESPSCANCAM_BASE_PATH | / | URL base path (reverse proxy) |
+| SATSU_PORT | 8400 | Listen port |
+| SATSU_DATA_DIR | /data | Data directory |
+| SATSU_LOG_LEVEL | INFO | Minimum log level |
+| SATSU_BASE_PATH | / | URL base path (reverse proxy) |
 | TZ | UTC | Timezone |
 
 ---
@@ -1229,13 +1229,13 @@ Indexes: timestamp, level, category, device_mac
 ## Open Questions (All Resolved)
 
 1. **OCR Integration**: **RESOLVED** — Out of scope. No Tesseract integration.
-   Paperless-NGX already provides OCR on ingested documents. ESPScanCam focuses
+   Paperless-NGX already provides OCR on ingested documents. Satsu focuses
    exclusively on capture, image processing, and export. This keeps the Docker
    image under 500MB.
 
 2. **PWA Support**: **RESOLVED** — Yes, basic PWA. Includes manifest.json, app
    icons, splash screen, and a service worker for app shell caching (static
-   assets only). No offline data sync. Users can install ESPScanCam on their
+   assets only). No offline data sync. Users can install Satsu on their
    phone home screen for a native-like experience. Planned for v0.6 milestone.
 
 3. **Multi-User Support**: **RESOLVED** — Shared model. No user isolation, no
@@ -1249,7 +1249,7 @@ Indexes: timestamp, level, category, device_mac
 
 5. **Barcode/QR Detection**: **RESOLVED** — Out of scope. Not planned for any
    milestone. Document classification and routing are handled by Paperless-NGX
-   matching rules after export. ESPScanCam stays focused on capture and image
+   matching rules after export. Satsu stays focused on capture and image
    processing.
 
 ---
@@ -1260,7 +1260,7 @@ Indexes: timestamp, level, category, device_mac
 
 - Q: Should scans be isolated per user (private batches) or shared? → A: Shared — no user isolation, all scans visible to everyone (household model). No built-in auth, consistent with *arr ecosystem convention.
 - Q: Should the API require a key for ESP32-CAM device registration and uploads? → A: Optional shared API key, configured in Settings > System, sent as `X-API-Key` header. Disabled by default for zero-config start. When enabled, devices without the key are rejected with 403.
-- Q: Should Tesseract OCR be integrated for searchable PDFs? → A: No. OCR is explicitly out of scope. Paperless-NGX already handles OCR on ingested documents. ESPScanCam focuses on capture, image processing, and export. This keeps the Docker image lean.
+- Q: Should Tesseract OCR be integrated for searchable PDFs? → A: No. OCR is explicitly out of scope. Paperless-NGX already handles OCR on ingested documents. Satsu focuses on capture, image processing, and export. This keeps the Docker image lean.
 - Q: Should the frontend be a Progressive Web App? → A: Yes, basic PWA. Installable on home screen with app icon and splash screen. App shell caching via service worker (static assets only). No offline data sync — requires network to scan/upload. Included in v0.6 (Polish) milestone.
 - Q: Should the system detect barcodes/QR codes for automatic routing or tagging? → A: Out of scope. Not planned for any milestone. Users can rely on Paperless-NGX matching rules for automatic document classification after export.
 

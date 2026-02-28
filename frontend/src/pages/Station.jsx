@@ -54,7 +54,7 @@ export default function Station() {
           <div className="station-setup__icon">
             <IconCamera style={{ fontSize: 48 }} />
           </div>
-          <h1 className="station-setup__title">ESPScanCam Station</h1>
+          <h1 className="station-setup__title">Satsu Station</h1>
           <p className="station-setup__desc">
             This device will act as a dedicated scanning station.
             It can be controlled remotely from the Devices page.

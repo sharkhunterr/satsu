@@ -1,6 +1,6 @@
 # WebSocket Contract
 
-> **ESPScanCam — Real-Time Event Stream**
+> **Satsu — Real-Time Event Stream**
 
 ## Conventions
 
@@ -54,7 +54,7 @@ The client opens a WebSocket connection to `ws://host:8400/ws`. No authenticatio
 const ws = new WebSocket("ws://host:8400/ws");
 
 ws.onopen = () => {
-  console.log("Connected to ESPScanCam");
+  console.log("Connected to Satsu");
 };
 ```
 

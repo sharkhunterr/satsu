@@ -1,6 +1,6 @@
 # Settings API Contract
 
-> **ESPScanCam API — Configuration & Profiles**
+> **Satsu API — Configuration & Profiles**
 
 ## Conventions
 
@@ -40,7 +40,7 @@ The settings object contains seven sections: `general`, `capture`, `processing`,
 ```json
 {
   "general": {
-    "server_name": "ESPScanCam",
+    "server_name": "Satsu",
     "language": "en",
     "timezone": "UTC",
     "api_key_enabled": false,
@@ -130,7 +130,7 @@ The settings object contains seven sections: `general`, `capture`, `processing`,
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `server_name` | string | `"ESPScanCam"` | Display name for the server instance |
+| `server_name` | string | `"Satsu"` | Display name for the server instance |
 | `language` | string | `"en"` | UI language code |
 | `timezone` | string | `"UTC"` | Server timezone (IANA format) |
 | `api_key_enabled` | boolean | `false` | Require API key for device endpoints |
@@ -645,7 +645,7 @@ POST /api/settings/backup HTTP/1.1
 ```http
 HTTP/1.1 200 OK
 Content-Type: application/json
-Content-Disposition: attachment; filename="espscancam-config-2026-02-23.json"
+Content-Disposition: attachment; filename="satsu-config-2026-02-23.json"
 ```
 
 ```json

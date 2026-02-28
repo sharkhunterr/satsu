@@ -7,7 +7,7 @@ import tempfile
 import pytest
 from fastapi.testclient import TestClient
 
-os.environ["ESPSCANCAM_DATA_DIR"] = tempfile.mkdtemp()
+os.environ["SATSU_DATA_DIR"] = tempfile.mkdtemp()
 
 from main import app
 

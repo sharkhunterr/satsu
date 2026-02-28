@@ -7,7 +7,7 @@ from copy import deepcopy
 
 DEFAULT_CONFIG = {
     "general": {
-        "server_name": "ESPScanCam",
+        "server_name": "Satsu",
         "language": "en",
         "timezone": "UTC",
         "api_key_enabled": False,
@@ -51,7 +51,7 @@ DEFAULT_CONFIG = {
     },
 }
 
-DATA_DIR = os.environ.get("ESPSCANCAM_DATA_DIR", "/data")
+DATA_DIR = os.environ.get("SATSU_DATA_DIR", "/data")
 CONFIG_PATH = os.path.join(DATA_DIR, "config.json")
 
 
@@ -67,14 +67,14 @@ def _deep_merge(base: dict, override: dict) -> dict:
 
 
 def _apply_env_overrides(config: dict) -> dict:
-    """Apply ESPSCANCAM_* environment variables as overrides."""
-    prefix = "ESPSCANCAM_"
+    """Apply SATSU_* environment variables as overrides."""
+    prefix = "SATSU_"
     for key, value in os.environ.items():
         if not key.startswith(prefix):
             continue
         parts = key[len(prefix):].lower().split("_", 1)
         if len(parts) == 1:
-            # Top-level override (e.g., ESPSCANCAM_PORT → system.port)
+            # Top-level override (e.g., SATSU_PORT → system.port)
             if parts[0] == "port":
                 config["system"]["port"] = int(value)
             elif parts[0] == "log_level":

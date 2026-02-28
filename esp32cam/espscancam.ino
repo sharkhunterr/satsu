@@ -1,5 +1,5 @@
 /*
- * ESPScanCam - ESP32-CAM Document Scanner Firmware
+ * Satsu - ESP32-CAM Document Scanner Firmware
  *
  * Hardware: ESP32-CAM AI-Thinker module (OV2640 + 4MB PSRAM)
  * Buttons: SCAN (capture), SEND (upload + process), RESET (clear batch)
@@ -79,14 +79,14 @@ int configFlashDuration = FLASH_DURATION_MS;
 // ---------------------------------------------------------------------------
 
 bool hasNvsConfig() {
-  preferences.begin("espscancam", true);  // read-only
+  preferences.begin("satsu", true);  // read-only
   bool hasConfig = preferences.getBool("configured", false);
   preferences.end();
   return hasConfig;
 }
 
 void loadNvsConfig() {
-  preferences.begin("espscancam", true);  // read-only
+  preferences.begin("satsu", true);  // read-only
 
   cfgWifiSsid   = preferences.getString("wifi_ssid", WIFI_SSID);
   cfgWifiPass    = preferences.getString("wifi_pass", WIFI_PASSWORD);
@@ -105,7 +105,7 @@ void loadNvsConfig() {
 }
 
 void saveNvsConfig(JsonDocument& doc) {
-  preferences.begin("espscancam", false);  // read-write
+  preferences.begin("satsu", false);  // read-write
 
   if (doc.containsKey("wifi_ssid"))   preferences.putString("wifi_ssid", doc["wifi_ssid"].as<String>());
   if (doc.containsKey("wifi_pass"))   preferences.putString("wifi_pass", doc["wifi_pass"].as<String>());
@@ -126,13 +126,13 @@ void saveNvsConfig(JsonDocument& doc) {
  * Wait for JSON config on Serial. Returns true if config was received.
  *
  * Protocol:
- *   1. Firmware prints "ESPSCANCAM_READY" on Serial
+ *   1. Firmware prints "SATSU_READY" on Serial
  *   2. Host sends JSON config ending with newline
- *   3. Firmware parses, saves to NVS, prints "ESPSCANCAM_OK"
+ *   3. Firmware parses, saves to NVS, prints "SATSU_OK"
  *   4. Firmware reboots
  */
 bool waitForSerialConfig(unsigned long timeoutMs) {
-  Serial.println("ESPSCANCAM_READY");
+  Serial.println("SATSU_READY");
   Serial.flush();
 
   unsigned long start = millis();
@@ -148,13 +148,13 @@ bool waitForSerialConfig(unsigned long timeoutMs) {
           DeserializationError error = deserializeJson(doc, buffer);
           if (!error) {
             saveNvsConfig(doc);
-            Serial.println("ESPSCANCAM_OK");
+            Serial.println("SATSU_OK");
             Serial.flush();
             delay(500);
             ESP.restart();
             return true;
           } else {
-            Serial.print("ESPSCANCAM_ERROR: JSON parse failed: ");
+            Serial.print("SATSU_ERROR: JSON parse failed: ");
             Serial.println(error.c_str());
           }
         }
@@ -166,7 +166,7 @@ bool waitForSerialConfig(unsigned long timeoutMs) {
     delay(10);
   }
 
-  Serial.println("ESPSCANCAM_TIMEOUT");
+  Serial.println("SATSU_TIMEOUT");
   return false;
 }
 
@@ -445,7 +445,7 @@ void loop() {
       DeserializationError error = deserializeJson(doc, line);
       if (!error) {
         saveNvsConfig(doc);
-        Serial.println("ESPSCANCAM_OK");
+        Serial.println("SATSU_OK");
         Serial.flush();
         delay(500);
         ESP.restart();

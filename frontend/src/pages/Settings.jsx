@@ -21,7 +21,7 @@ const TABS = [
 
 const DEFAULT_CONFIG = {
   general: {
-    server_name: 'ESPScanCam',
+    server_name: 'Satsu',
     language: 'en',
     timezone: 'UTC',
     theme: 'auto',
@@ -266,7 +266,7 @@ export default function Settings() {
         }
       } else if (value === 'auto') {
         // Remove manual override, let OS preference drive it
-        localStorage.removeItem('espscancam-theme')
+        localStorage.removeItem('satsu-theme')
         const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches
         const desired = prefersDark ? 'dark' : 'light'
         if (themeCtx?.theme !== desired) {
@@ -470,7 +470,7 @@ export default function Settings() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `espscancam-config-${new Date().toISOString().slice(0, 10)}.json`
+      a.download = `satsu-config-${new Date().toISOString().slice(0, 10)}.json`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
@@ -1709,7 +1709,7 @@ export default function Settings() {
       <div className="page-header">
         <h1 className="page-header__title">Settings</h1>
         <p className="page-header__description">
-          Configure your ESPScanCam server, capture, processing, and storage options.
+          Configure your Satsu server, capture, processing, and storage options.
         </p>
       </div>
 

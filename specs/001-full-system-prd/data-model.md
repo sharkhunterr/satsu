@@ -1,8 +1,8 @@
-# Data Model: ESPScanCam
+# Data Model: Satsu
 
 **Phase 1 output** | **Date**: 2026-02-23 | **Spec**: [spec.md](./spec.md) | **Plan**: [plan.md](./plan.md)
 
-This document defines the complete data model for ESPScanCam: all entities, fields,
+This document defines the complete data model for Satsu: all entities, fields,
 relationships, validation rules, state machines, indexes, file storage conventions,
 and migration strategy.
 
@@ -876,7 +876,7 @@ Structured context data for a log entry. Schema varies by category. Common patte
 {
   "event": "startup",
   "version": "0.1.0",
-  "database": "/data/espscancam.db",
+  "database": "/data/satsu.db",
   "port": 8400
 }
 ```
@@ -891,15 +891,15 @@ gracefully.
 
 All file paths stored in the database (`original_path`, `processed_path`) are
 **relative to the `/data` volume mount**. The application prepends the data
-directory (default `/data`, configurable via `ESPSCANCAM_DATA_DIR`).
+directory (default `/data`, configurable via `SATSU_DATA_DIR`).
 
 ### 7.1 Directory Structure
 
 ```
 /data/
-├── espscancam.db                          # SQLite database (WAL mode)
-├── espscancam.db-wal                      # WAL file (auto-managed)
-├── espscancam.db-shm                      # Shared memory file (auto-managed)
+├── satsu.db                          # SQLite database (WAL mode)
+├── satsu.db-wal                      # WAL file (auto-managed)
+├── satsu.db-shm                      # Shared memory file (auto-managed)
 ├── config.json                            # Application configuration
 ├── scans/
 │   └── {batch_id}/
@@ -989,7 +989,7 @@ PRAGMA cache_size = -64000;
 
 On first startup (database file does not exist), the application:
 
-1. Creates the database file at `{ESPSCANCAM_DATA_DIR}/espscancam.db`.
+1. Creates the database file at `{SATSU_DATA_DIR}/satsu.db`.
 2. Sets all pragmas (Section 8.1).
 3. Executes all `CREATE TABLE IF NOT EXISTS` statements (Section 2).
 4. Executes all `CREATE INDEX IF NOT EXISTS` statements (Section 5).
@@ -1048,4 +1048,4 @@ async def migrate(db):
 
 *This data model document is the Phase 1 output of the speckit workflow. It is
 the authoritative reference for all database-related implementation decisions
-in ESPScanCam.*
+in Satsu.*

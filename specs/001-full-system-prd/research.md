@@ -1,4 +1,4 @@
-# Research: ESPScanCam
+# Research: Satsu
 
 **Phase 0 output** — All technical decisions resolved.
 
@@ -21,7 +21,7 @@ in the headless build.
 **Decision**: Use SQLite in WAL (Write-Ahead Logging) mode with a single
 writer and multiple concurrent readers.
 
-**Rationale**: ESPScanCam has a write pattern of one batch at a time (sequential
+**Rationale**: Satsu has a write pattern of one batch at a time (sequential
 page processing) with multiple concurrent reads (WebSocket broadcasting, API
 queries, dashboard stats). WAL mode allows reads to proceed without blocking
 on writes. Single-file database with zero configuration aligns with the
@@ -215,7 +215,7 @@ LIMIT :limit
 **Decision**: Basic PWA with manifest.json, app icons, and service worker
 for app shell caching only (no offline data sync).
 
-**Rationale**: The Famille persona benefits from installing ESPScanCam on their
+**Rationale**: The Famille persona benefits from installing Satsu on their
 phone home screen (native app feel, no browser chrome). Service worker caches
 static assets (JS, CSS, HTML) for faster subsequent loads but does NOT cache
 API responses or enable offline scanning (network required).

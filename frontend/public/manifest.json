@@ -1,6 +1,6 @@
 {
-  "name": "ESPScanCam",
-  "short_name": "ESPScanCam",
+  "name": "Satsu",
+  "short_name": "Satsu",
   "description": "Self-hosted document scanning system",
   "start_url": "/",
   "display": "standalone",

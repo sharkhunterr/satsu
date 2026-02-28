@@ -8,17 +8,17 @@ import pytest
 import aiosqlite
 
 # Set test data dir before importing
-os.environ["ESPSCANCAM_DATA_DIR"] = tempfile.mkdtemp()
+os.environ["SATSU_DATA_DIR"] = tempfile.mkdtemp()
 
 from database import get_db, init_db, DB_PATH
 
 @pytest.fixture(autouse=True)
 async def fresh_db():
     """Create a fresh database for each test."""
-    os.environ["ESPSCANCAM_DATA_DIR"] = tempfile.mkdtemp()
+    os.environ["SATSU_DATA_DIR"] = tempfile.mkdtemp()
     # Reimport to pick up new path
     import database
-    database.DB_PATH = os.path.join(os.environ["ESPSCANCAM_DATA_DIR"], "espscancam.db")
+    database.DB_PATH = os.path.join(os.environ["SATSU_DATA_DIR"], "satsu.db")
     await init_db()
     yield
 

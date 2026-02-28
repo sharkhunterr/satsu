@@ -1,4 +1,4 @@
-"""ESPScanCam — FastAPI application with WebSocket, all API routes, and static serving."""
+"""Satsu — FastAPI application with WebSocket, all API routes, and static serving."""
 
 import json
 import os
@@ -117,7 +117,7 @@ async def lifespan(app: FastAPI):
     app_logger = AppLogger(get_db, manager.broadcast)
     app_logger.set_min_level(app_config.get("logs", {}).get("min_level", "INFO"))
 
-    await app_logger.info("system", "ESPScanCam server started")
+    await app_logger.info("system", "Satsu server started")
 
     # Start background tasks
     offline_task = asyncio.create_task(_device_offline_checker())
@@ -137,7 +137,7 @@ async def lifespan(app: FastAPI):
     except asyncio.CancelledError:
         pass
 
-app = FastAPI(title="ESPScanCam", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Satsu", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -1347,7 +1347,7 @@ async def profile_delete(profile_id: str):
 @app.post("/api/settings/backup")
 async def settings_backup():
     return JSONResponse(content=app_config,
-                        headers={"Content-Disposition": "attachment; filename=espscancam-config.json"})
+                        headers={"Content-Disposition": "attachment; filename=satsu-config.json"})
 
 
 @app.post("/api/settings/restore")
@@ -1511,13 +1511,13 @@ async def logs_export(
         return StreamingResponse(
             iter([content]),
             media_type="text/plain",
-            headers={"Content-Disposition": "attachment; filename=espscancam.log"},
+            headers={"Content-Disposition": "attachment; filename=satsu.log"},
         )
     else:
         items = [dict(r) | {"details": json.loads(r.get("details", "{}"))} for r in rows]
         return JSONResponse(
             content=items,
-            headers={"Content-Disposition": "attachment; filename=espscancam-logs.json"},
+            headers={"Content-Disposition": "attachment; filename=satsu-logs.json"},
         )
 
 
@@ -1583,7 +1583,7 @@ async def stats():
 
 # Bundled firmware binary (in repo, compiled via PlatformIO)
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_BUNDLED_FIRMWARE = os.path.join(_REPO_ROOT, "esp32cam", "firmware", "espscancam.bin")
+_BUNDLED_FIRMWARE = os.path.join(_REPO_ROOT, "esp32cam", "firmware", "satsu.bin")
 
 
 def _find_firmware():
@@ -1604,7 +1604,7 @@ async def firmware_info():
         "available": True,
         "size": stat.st_size,
         "modified": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
-        "filename": "espscancam.bin",
+        "filename": "satsu.bin",
     }
 
 
@@ -1614,7 +1614,7 @@ async def firmware_download():
     fw_path = _find_firmware()
     if not fw_path:
         raise HTTPException(404, "No firmware binary available")
-    return FileResponse(fw_path, media_type="application/octet-stream", filename="espscancam.bin")
+    return FileResponse(fw_path, media_type="application/octet-stream", filename="satsu.bin")
 
 
 # ---------------------------------------------------------------------------

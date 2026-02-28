@@ -35,13 +35,13 @@
   Follow-up TODOs: None
 -->
 
-# ESPScanCam Constitution
+# Satsu Constitution
 
 ## Core Principles
 
 ### I. Self-Hosted First
 
-ESPScanCam is a 100% self-hosted document scanning system. Zero cloud dependency
+Satsu is a 100% self-hosted document scanning system. Zero cloud dependency
 is mandatory. Every feature MUST function in a fully air-gapped local network
 environment with no internet access.
 
@@ -55,7 +55,7 @@ environment with no internet access.
   are OPTIONAL export targets, never dependencies. The system MUST function fully
   without them configured.
 - **Offline Firmware**: ESP32-CAM devices MUST operate on the local network only.
-  They communicate exclusively with the ESPScanCam backend via HTTP POST over WiFi.
+  They communicate exclusively with the Satsu backend via HTTP POST over WiFi.
   No firmware update from cloud, no external API calls.
 - **Docker-First Deployment**: The primary (and only supported) deployment method is
   Docker. The container MUST be compatible with Unraid, Proxmox LXC, and standard
@@ -120,7 +120,7 @@ hardcoded. If a developer adds a feature, they MUST add the corresponding
 configuration parameters.
 
 - **Configuration Storage**: JSON file at `/data/config.json`. Environment variables
-  override JSON values (prefix: `ESPSCANCAM_`). Configuration changes via API
+  override JSON values (prefix: `SATSU_`). Configuration changes via API
   persist to the JSON file immediately.
 - **Settings Organization** (7 tabs):
 
@@ -286,7 +286,7 @@ simultaneously.
 
 - **Naming Templates**: Configurable filename patterns using variables:
   `{date}`, `{time}`, `{device}`, `{batch_id}`, `{page_count}`, `{profile}`.
-  Default: `ESPScanCam_{date}_{time}_{device}`.
+  Default: `Satsu_{date}_{time}_{device}`.
 - **Multi-Target Export**: A single batch can be exported to multiple backends in
   one operation. Each backend reports its own success/failure independently.
 - **Connection Testing**: Every backend configuration MUST be testable from the
@@ -300,7 +300,7 @@ simultaneously.
 
 ### Architecture Overview
 
-ESPScanCam follows a strict 3-layer architecture:
+Satsu follows a strict 3-layer architecture:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -331,7 +331,7 @@ ESPScanCam follows a strict 3-layer architecture:
 │  │       ▼              ▼             ▼            ▼       │    │
 │  │  ┌──────────────────────────────────────────────────┐   │    │
 │  │  │  SQLite (WAL mode) — database.py                 │   │    │
-│  │  │  /data/espscancam.db                             │   │    │
+│  │  │  /data/satsu.db                             │   │    │
 │  │  └──────────────────────────────────────────────────┘   │    │
 │  │  ┌──────────────────────────────────────────────────┐   │    │
 │  │  │  Filesystem — /data/scans/{batch_id}/            │   │    │
@@ -379,9 +379,9 @@ ESPScanCam follows a strict 3-layer architecture:
 ### Repository Structure
 
 ```
-espscancam/
+satsu/
 ├── esp32cam/
-│   ├── espscancam.ino              # Main firmware sketch
+│   ├── satsu.ino              # Main firmware sketch
 │   └── config.example.h            # WiFi + server URL template
 ├── backend/
 │   ├── main.py                     # FastAPI app, routes, WebSocket manager
@@ -414,21 +414,21 @@ espscancam/
 ```bash
 # Docker Compose (standard deployment)
 services:
-  espscancam:
-    image: espscancam:latest
-    container_name: espscancam
+  satsu:
+    image: satsu:latest
+    container_name: satsu
     ports:
       - "8400:8400"
     volumes:
       - /path/to/data:/data
     environment:
-      - ESPSCANCAM_PORT=8400          # Optional override
+      - SATSU_PORT=8400          # Optional override
     restart: unless-stopped
 ```
 
-- **Volume `/data`**: Contains `espscancam.db`, `config.json`, `scans/` directory.
+- **Volume `/data`**: Contains `satsu.db`, `config.json`, `scans/` directory.
   This is the ONLY persistent state. Backup = copy `/data`.
-- **Port**: Configurable via `ESPSCANCAM_PORT` env var or `config.json`. Default `8400`.
+- **Port**: Configurable via `SATSU_PORT` env var or `config.json`. Default `8400`.
 - **Multi-arch**: Docker image MUST be built for both `linux/amd64` and `linux/arm64`
   (Raspberry Pi, Apple Silicon Proxmox VMs).
 
@@ -842,7 +842,7 @@ The onboard LED (or external LED on configurable GPIO) communicates device state
 
 ### Authentication
 
-ESPScanCam does NOT implement its own authentication. Access control MUST be
+Satsu does NOT implement its own authentication. Access control MUST be
 delegated to a reverse proxy (Nginx, Traefik, Caddy, Authentik, Authelia).
 
 - **Rationale**: Homelab users have diverse auth requirements. Built-in auth
@@ -904,14 +904,14 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8400"]
   ```nginx
   # Nginx example
   location /ws {
-      proxy_pass http://espscancam:8400;
+      proxy_pass http://satsu:8400;
       proxy_http_version 1.1;
       proxy_set_header Upgrade $http_upgrade;
       proxy_set_header Connection "upgrade";
   }
   ```
 - **Base path**: The application MUST support being served under a sub-path
-  (e.g., `/espscancam/`) via the `ESPSCANCAM_BASE_PATH` environment variable.
+  (e.g., `/satsu/`) via the `SATSU_BASE_PATH` environment variable.
 - **HTTPS termination**: TLS is terminated at the reverse proxy. Internal
   communication is HTTP. The application MUST set appropriate headers for HTTPS
   awareness (`X-Forwarded-Proto`).
@@ -920,21 +920,21 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8400"]
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ESPSCANCAM_PORT` | `8400` | Server listen port |
-| `ESPSCANCAM_DATA_DIR` | `/data` | Persistent data directory |
-| `ESPSCANCAM_LOG_LEVEL` | `INFO` | Minimum log level |
-| `ESPSCANCAM_BASE_PATH` | `/` | URL base path for reverse proxy sub-path |
-| `ESPSCANCAM_WORKERS` | `1` | Uvicorn worker count (1 recommended for SQLite) |
+| `SATSU_PORT` | `8400` | Server listen port |
+| `SATSU_DATA_DIR` | `/data` | Persistent data directory |
+| `SATSU_LOG_LEVEL` | `INFO` | Minimum log level |
+| `SATSU_BASE_PATH` | `/` | URL base path for reverse proxy sub-path |
+| `SATSU_WORKERS` | `1` | Uvicorn worker count (1 recommended for SQLite) |
 
 Additional storage backend credentials can be set via environment variables
-with the prefix `ESPSCANCAM_STORAGE_` (e.g., `ESPSCANCAM_STORAGE_PAPERLESS_URL`).
+with the prefix `SATSU_STORAGE_` (e.g., `SATSU_STORAGE_PAPERLESS_URL`).
 Environment variables ALWAYS override `config.json` values.
 
 ## Governance
 
 ### Constitutional Supremacy
 
-This constitution is the supreme governing document of the ESPScanCam project.
+This constitution is the supreme governing document of the Satsu project.
 All code, documentation, configurations, and development practices MUST conform
 to the principles and standards defined herein.
 

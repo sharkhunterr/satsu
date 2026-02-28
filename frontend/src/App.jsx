@@ -39,7 +39,7 @@ export const useTheme = () => useContext(ThemeContext)
 function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => {
     // 1. Check localStorage
-    const stored = localStorage.getItem('espscancam-theme')
+    const stored = localStorage.getItem('satsu-theme')
     if (stored === 'light' || stored === 'dark') return stored
     // 2. Check system preference
     if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) return 'dark'
@@ -49,7 +49,7 @@ function ThemeProvider({ children }) {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
-    localStorage.setItem('espscancam-theme', theme)
+    localStorage.setItem('satsu-theme', theme)
   }, [theme])
 
   // Listen for OS-level theme changes
@@ -57,7 +57,7 @@ function ThemeProvider({ children }) {
     const mq = window.matchMedia('(prefers-color-scheme: dark)')
     const handler = (e) => {
       // Only auto-switch if user hasn't explicitly chosen
-      const stored = localStorage.getItem('espscancam-theme')
+      const stored = localStorage.getItem('satsu-theme')
       if (!stored) {
         setTheme(e.matches ? 'dark' : 'light')
       }
@@ -178,7 +178,7 @@ function AppLayout() {
     if (ROUTE_TITLES[location.pathname]) return ROUTE_TITLES[location.pathname]
     // Check for /history/:id pattern
     if (location.pathname.startsWith('/history/')) return 'Scan Detail'
-    return 'ESPScanCam'
+    return 'Satsu'
   }, [location.pathname])
 
   // Station page is a kiosk — no sidebar, topbar, or bottom nav
