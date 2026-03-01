@@ -1,0 +1,33 @@
+# Satsu - Docker Compose Configuration
+# Self-hosted document scanning system
+
+services:
+  satsu:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: satsu
+    ports:
+      - "8400:8400"
+    environment:
+      - SATSU_LOG_LEVEL=INFO
+      - TZ=Europe/Paris
+    volumes:
+      - satsu-data:/data
+    networks:
+      - satsu-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8400/api/stats"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  satsu-data:
+    name: satsu-data
+
+networks:
+  satsu-network:
+    name: satsu-network
+    driver: bridge

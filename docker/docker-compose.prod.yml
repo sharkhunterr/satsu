@@ -1,0 +1,7 @@
+# Production configuration
+# Uses pre-built image from Docker Hub
+
+services:
+  satsu:
+    image: sharkhunterr/satsu:latest
+    build: !reset null

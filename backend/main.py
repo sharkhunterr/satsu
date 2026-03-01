@@ -1,5 +1,6 @@
 """Satsu — FastAPI application with WebSocket, all API routes, and static serving."""
 
+from version import __version__
 import json
 import os
 import time
@@ -137,7 +138,7 @@ async def lifespan(app: FastAPI):
     except asyncio.CancelledError:
         pass
 
-app = FastAPI(title="Satsu", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Satsu", version=__version__, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

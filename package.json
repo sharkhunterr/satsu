@@ -1,0 +1,56 @@
+{
+  "name": "satsu",
+  "version": "0.1.0",
+  "description": "Satsu - Self-hosted document scanning system",
+  "scripts": {
+    "predev": "npm run kill",
+    "dev": "concurrently -k -n backend,frontend -c blue,green \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend && source .venv/bin/activate 2>/dev/null || true && uvicorn main:app --host 0.0.0.0 --port ${SATSU_PORT:-8400} --reload",
+    "kill": "pkill -f 'uvicorn main:app' 2>/dev/null || true; pkill -f 'vite' 2>/dev/null || true",
+    "install": "npm run install:all",
+    "install:all": "npm ci && npm run setup:backend && cd frontend && npm ci",
+    "setup:backend": "cd backend && python -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt",
+    "build": "cd frontend && npm run build",
+    "docker": "docker compose -f docker/docker-compose.yml up --build",
+    "docker:detach": "docker compose -f docker/docker-compose.yml up -d --build",
+    "docker:stop": "docker compose -f docker/docker-compose.yml down",
+    "docker:logs": "docker compose -f docker/docker-compose.yml logs -f",
+    "test": "npm run test:backend",
+    "test:backend": "cd backend && . .venv/bin/activate && pytest tests/ -v",
+    "lint": "npm run lint:backend",
+    "lint:backend": "cd backend && . .venv/bin/activate && ruff check .",
+    "clean": "rm -rf backend/.venv frontend/node_modules frontend/dist",
+    "release": "node scripts/release.js",
+    "release:github": "node scripts/release.js --github",
+    "release:deploy": "node scripts/release.js --deploy",
+    "release:full": "node scripts/release.js --github --deploy",
+    "push": "node scripts/push.js",
+    "push:github": "node scripts/push.js --github",
+    "push:all": "node scripts/push.js --all",
+    "push:tags": "node scripts/push.js --tags-only"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "standard-version": "^9.5.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "python": ">=3.11.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sharkhunterr/satsu"
+  },
+  "keywords": [
+    "scanner",
+    "document",
+    "esp32-cam",
+    "self-hosted",
+    "opencv",
+    "paperless",
+    "homelab"
+  ],
+  "author": "",
+  "license": "MIT"
+}
