@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.1.5](https://github.com/sharkhunterr/satsu/-/compare/v0.1.4...v0.1.5) (2026-03-02)
+
+
+### Bug Fixes
+
+* resolve test_config cross-test pollution, bump release notes to v0.1.5 ([1529907](https://github.com/sharkhunterr/satsu/-/commit/1529907cb1595a3760cba55eb805b808ee6f2fdf))
+
 ### [0.1.4](https://github.com/sharkhunterr/satsu/-/compare/v0.1.3...v0.1.4) (2026-03-02)
 
 
