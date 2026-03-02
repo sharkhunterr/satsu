@@ -125,7 +125,7 @@ export default function Logs() {
      ------------------------------------------------------------------ */
 
   // Mode: 'realtime' or 'historical'
-  const [mode, setMode] = useState('realtime')
+  const [mode, setMode] = useState('historical')
 
   // Log buffers
   const [realtimeLogs, setRealtimeLogs] = useState([])
@@ -157,6 +157,7 @@ export default function Logs() {
   const terminalRef = useRef(null)
   const isAtBottomRef = useRef(true)
   const topSentinelRef = useRef(null)
+  const needsScrollToBottomRef = useRef(false)
 
   /* ------------------------------------------------------------------
      Fetch devices for filter dropdown
@@ -273,14 +274,17 @@ export default function Logs() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const data = await res.json()
 
-        const items = data.items ?? data.logs ?? []
+        // API returns DESC (newest first) — reverse to ASC for terminal display
+        const items = (data.items ?? data.logs ?? []).reverse()
         const newCursor = data.cursor ?? null
 
         if (append) {
-          // Prepend older logs (infinite scroll up)
+          // Prepend older logs at top (infinite scroll up)
           setHistoricalLogs((prev) => [...items, ...prev])
         } else {
           setHistoricalLogs(items)
+          // Flag to scroll to bottom after initial render
+          needsScrollToBottomRef.current = true
         }
 
         setHistoricalCursor(newCursor)
@@ -294,6 +298,14 @@ export default function Logs() {
     },
     [buildHistoricalParams],
   )
+
+  // Scroll to bottom after initial historical load renders
+  useEffect(() => {
+    if (needsScrollToBottomRef.current && historicalLogs.length > 0 && !historicalInitialLoading) {
+      needsScrollToBottomRef.current = false
+      requestAnimationFrame(() => scrollToBottom())
+    }
+  }, [historicalLogs, historicalInitialLoading, scrollToBottom])
 
   // Fetch historical logs when switching to historical mode or filters change
   useEffect(() => {

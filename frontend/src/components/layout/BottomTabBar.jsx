@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
   IconHome, IconHistory, IconDevices,
-  IconLogs, IconSettings, IconInfo, IconMore,
+  IconLogs, IconSettings, IconMore,
 } from '../shared/Icons'
 
 const PRIMARY_TABS = [
@@ -14,7 +14,6 @@ const PRIMARY_TABS = [
 const MORE_ITEMS = [
   { to: '/logs', icon: <IconLogs />, label: 'Logs' },
   { to: '/settings', icon: <IconSettings />, label: 'Settings' },
-  { to: '/about', icon: <IconInfo />, label: 'About' },
 ]
 
 export default function BottomTabBar() {

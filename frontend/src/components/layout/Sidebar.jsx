@@ -2,7 +2,7 @@ import React from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   IconHome, IconHistory, IconDevices,
-  IconLogs, IconSettings, IconInfo, IconChevronLeft, IconChevronRight,
+  IconLogs, IconSettings, IconChevronLeft, IconChevronRight,
 } from '../shared/Icons'
 
 const NAV_ITEMS = [
@@ -11,7 +11,6 @@ const NAV_ITEMS = [
   { to: '/devices', icon: <IconDevices />, label: 'Devices' },
   { to: '/logs', icon: <IconLogs />, label: 'Logs' },
   { to: '/settings', icon: <IconSettings />, label: 'Settings' },
-  { to: '/about', icon: <IconInfo />, label: 'About' },
 ]
 
 export default function Sidebar({ expanded, onToggle }) {

@@ -13,7 +13,6 @@ import Detail from './pages/Detail'
 import Devices from './pages/Devices'
 import Logs from './pages/Logs'
 import Settings from './pages/Settings'
-import About from './pages/About'
 import Station from './pages/Station'
 
 import './styles/variables.css'
@@ -123,9 +122,6 @@ function LogsPage() {
 function SettingsPage() {
   return <Settings />
 }
-function AboutPage() {
-  return <About />
-}
 function StationPage() {
   return <Station />
 }
@@ -140,7 +136,6 @@ export const ROUTE_TITLES = {
   '/devices': 'Devices',
   '/logs': 'Logs',
   '/settings': 'Settings',
-  '/about': 'About',
 }
 
 /* ==========================================================================
@@ -215,7 +210,6 @@ function AppLayout() {
           <Route path="/devices" element={<DevicesPage />} />
           <Route path="/logs" element={<LogsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/about" element={<AboutPage />} />
         </Routes>
       </main>
 
