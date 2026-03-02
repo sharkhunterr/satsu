@@ -51,8 +51,12 @@ DEFAULT_CONFIG = {
     },
 }
 
-DATA_DIR = os.environ.get("SATSU_DATA_DIR", "/data")
-CONFIG_PATH = os.path.join(DATA_DIR, "config.json")
+def _get_data_dir_path() -> str:
+    return os.environ.get("SATSU_DATA_DIR", "/data")
+
+
+def _get_config_path() -> str:
+    return os.path.join(_get_data_dir_path(), "config.json")
 
 
 def _deep_merge(base: dict, override: dict) -> dict:
@@ -99,10 +103,11 @@ def _apply_env_overrides(config: dict) -> dict:
 def load_config() -> dict:
     """Load config from JSON file with defaults fallback and env overrides."""
     config = deepcopy(DEFAULT_CONFIG)
+    config_path = _get_config_path()
 
-    if os.path.exists(CONFIG_PATH):
+    if os.path.exists(config_path):
         try:
-            with open(CONFIG_PATH, "r") as f:
+            with open(config_path, "r") as f:
                 file_config = json.load(f)
             config = _deep_merge(config, file_config)
         except (json.JSONDecodeError, IOError):
@@ -115,14 +120,16 @@ def load_config() -> dict:
 
 def save_config(config: dict) -> None:
     """Save config to JSON file."""
-    os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
-    with open(CONFIG_PATH, "w") as f:
+    config_path = _get_config_path()
+    os.makedirs(os.path.dirname(config_path), exist_ok=True)
+    with open(config_path, "w") as f:
         json.dump(config, f, indent=2)
 
 
 def get_data_dir() -> str:
     """Return the data directory path, creating it if needed."""
-    os.makedirs(DATA_DIR, exist_ok=True)
+    data_dir = _get_data_dir_path()
+    os.makedirs(data_dir, exist_ok=True)
     for subdir in ["scans", "processed", "exports"]:
-        os.makedirs(os.path.join(DATA_DIR, subdir), exist_ok=True)
-    return DATA_DIR
+        os.makedirs(os.path.join(data_dir, subdir), exist_ok=True)
+    return data_dir
