@@ -21,7 +21,8 @@ variables:
   GITHUB_DEPLOY_ENABLED: "true"       # Synchroniser avec GitHub (sur les tags)
 
   # Docker
-  DOCKER_IMAGE: $CI_PROJECT_NAME
+  DOCKER_IMAGE: satsu
+  DOCKER_HUB_REPO: satsu
   DOCKER_DRIVER: overlay2
   DOCKER_TLS_CERTDIR: ""
   DOCKER_HOST: tcp://docker:2375
@@ -267,7 +268,7 @@ deploy:
         echo "Publication sur Docker Hub..."
         echo "$DOCKER_HUB_TOKEN" | docker login -u "$DOCKER_HUB_USER" --password-stdin
 
-        DOCKER_HUB_IMAGE="${DOCKER_HUB_USER}/${CI_PROJECT_NAME}"
+        DOCKER_HUB_IMAGE="${DOCKER_HUB_USER}/${DOCKER_HUB_REPO}"
         docker tag ${DOCKER_IMAGE}:${CI_COMMIT_SHA} ${DOCKER_HUB_IMAGE}:${CI_COMMIT_TAG:-latest}
         docker push ${DOCKER_HUB_IMAGE}:${CI_COMMIT_TAG:-latest}
 
@@ -422,7 +423,7 @@ verify:
     - |
       if [ "$DOCKER_HUB_ENABLED" = "true" ] && [ "$DEPLOY" = "true" ]; then
         echo "Vérification Docker Hub..."
-        DOCKER_HUB_IMAGE="${DOCKER_HUB_USER}/${CI_PROJECT_NAME}"
+        DOCKER_HUB_IMAGE="${DOCKER_HUB_USER}/${DOCKER_HUB_REPO}"
         TAG="${CI_COMMIT_TAG:-latest}"
         RESPONSE=$(curl -s "https://hub.docker.com/v2/repositories/${DOCKER_HUB_IMAGE}/tags/${TAG}")
         if echo "$RESPONSE" | jq -e '.name' > /dev/null 2>&1; then

@@ -4,20 +4,20 @@
 
 ---
 
-# v0.1.7
+# v0.1.8
 
-## Satsu v0.1.7 - Initial Release
+## 📷 Satsu v0.1.8 - Initial Release
 
-The first public release of Satsu, a self-hosted document scanning system that turns an ESP32-CAM module or any phone/tablet into a dedicated scanner.
+The first public release of **Satsu** (撮), a self-hosted document scanning system that turns an ESP32-CAM module or any phone/tablet into a dedicated scanner.
 
-### What's New
+### ✨ What's New
 
-**Multi-Source Capture**
+**📱 Multi-Source Capture**
 - **ESP32-CAM** — Physical button, auto-upload via WiFi
 - **Scanning Station** — Phone/tablet as kiosk scanner with remote control
 - **Web Upload** — Drag & drop from browser
 
-**8-Step Processing Pipeline**
+**⚙️ 8-Step Processing Pipeline**
 - Auto-crop & perspective correction
 - Deskew (rotation fix)
 - Denoise & sharpen
@@ -25,32 +25,32 @@ The first public release of Satsu, a self-hosted document scanning system that t
 - White balance normalization
 - Color / Grayscale / B&W modes
 
-**5 Storage Backends**
+**💾 5 Storage Backends**
 - **Paperless-ngx** — Direct API upload
 - **WebDAV** — Nextcloud, etc.
 - **Google Drive** — Service account
 - **SMB/CIFS** — Network shares
 - **Local** — Filesystem copy
 
-**Scanning Station (Kiosk Mode)**
+**🖥️ Scanning Station (Kiosk Mode)**
 - Open `/station` on a phone — it becomes a dedicated scanner
 - Remote control from the Devices page: capture, torch, switch camera, send
 - Crop zone calibration — set once, apply to all subsequent scans
 - Batch accumulation — capture multiple pages, send as multi-page PDF
 
-**Modern Web UI**
+**🎨 Modern Web UI**
 - Mobile-first responsive (375px+)
 - Dark theme with real-time WebSocket updates
 - Processing profiles — save and reuse parameter presets
 - Scan history with search, pagination, bulk actions
 - Interactive crop editor with drag-and-drop corners
 
-**ESP32-CAM Firmware**
+**🔧 ESP32-CAM Firmware**
 - One-click web flashing from the browser (no toolchain needed)
 - Non-blocking architecture (millis-based)
 - LED feedback patterns for status indication
 
-### Docker Quick Start
+### 🐳 Docker Quick Start
 
 ```yaml
 services:
@@ -67,11 +67,11 @@ volumes:
   satsu-data:
 ```
 
-### Links
+### 🔗 Links
 
-- [Docker Hub](https://hub.docker.com/r/sharkhunterr/satsu)
-- [Documentation](https://github.com/sharkhunterr/satsu#readme)
-- [Report Issues](https://github.com/sharkhunterr/satsu/issues)
+- [🐳 Docker Hub](https://hub.docker.com/r/sharkhunterr/satsu)
+- [📖 Documentation](https://github.com/sharkhunterr/satsu#readme)
+- [🐛 Report Issues](https://github.com/sharkhunterr/satsu/issues)
 
 ---
 
