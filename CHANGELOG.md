@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.1.3](https://github.com/sharkhunterr/satsu/-/compare/v0.1.2...v0.1.3) (2026-03-02)
+
+
+### Bug Fixes
+
+* resolve all CI test failures ([aff6ea2](https://github.com/sharkhunterr/satsu/-/commit/aff6ea247be6ab1c3ea58332852bc3d5881ef2a9))
+
 ### [0.1.2](https://github.com/sharkhunterr/satsu/-/compare/v0.1.1...v0.1.2) (2026-03-02)
 
 
