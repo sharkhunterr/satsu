@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.1.7](https://github.com/sharkhunterr/satsu/-/compare/v0.1.6...v0.1.7) (2026-03-02)
+
+
+### Bug Fixes
+
+* correct frontend build output path in Dockerfile ([e99bb11](https://github.com/sharkhunterr/satsu/-/commit/e99bb117b1d6f2e34d452e3c7eb7269bc212649e))
+
 ### [0.1.6](https://github.com/sharkhunterr/satsu/-/compare/v0.1.5...v0.1.6) (2026-03-02)
 
 
