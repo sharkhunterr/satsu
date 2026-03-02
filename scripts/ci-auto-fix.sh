@@ -42,7 +42,7 @@ if [ -d "backend" ]; then
         echo "  → Génération des rapports..."
         mkdir -p reports
         ruff check . --output-format=json > reports/ruff-report.json 2>&1 || true
-        ruff check . --output-format=text > reports/ruff-report.txt 2>&1 || true
+        ruff check . --output-format=concise > reports/ruff-report.txt 2>&1 || true
 
         # Compte les erreurs restantes
         REMAINING_ERRORS=$(ruff check . 2>&1 | grep -c "Found.*errors" || echo "0")

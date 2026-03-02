@@ -393,8 +393,6 @@ class TestStepBwMode:
         opts = {"enabled": True, "method": "adaptive", "block_size": 11, "c_value": 2}
         result = _step_bw_mode(gradient_image, opts)
         assert result is not None
-        # Result should contain mostly 0 and 255 values
-        unique = np.unique(result)
         # Grayscale or binary
         assert len(result.shape) <= 3
 
@@ -504,8 +502,7 @@ class TestSkipOnFailure:
         """Denoise with a grayscale (2D) input should handle gracefully."""
         gray = np.full((100, 100), 128, dtype=np.uint8)
         try:
-            result = _step_denoise(gray, default_opts.get("denoise", {}))
-            # May succeed or fail but should not cause unhandled error
+            _step_denoise(gray, default_opts.get("denoise", {}))
         except Exception:
             pass  # Acceptable — fastNlMeansDenoisingColored requires 3-channel
 
@@ -513,7 +510,7 @@ class TestSkipOnFailure:
         """CLAHE on an empty (0-size) image should handle gracefully."""
         empty = np.zeros((0, 0, 3), dtype=np.uint8)
         try:
-            result = _step_clahe(empty, default_opts.get("clahe", {}))
+            _step_clahe(empty, default_opts.get("clahe", {}))
         except Exception:
             pass  # Acceptable
 
@@ -613,8 +610,7 @@ class TestRunPipeline:
         input_path = os.path.join(data_dir, "scans", "nonexistent.jpg")
         callback = MagicMock()
         try:
-            result = _run_pipeline(input_path, "batch_none", 0, default_opts, callback)
-            # May return None or raise — both are acceptable
+            _run_pipeline(input_path, "batch_none", 0, default_opts, callback)
         except (FileNotFoundError, Exception):
             pass  # Expected
 
@@ -670,7 +666,7 @@ class TestProgressCallback:
         input_path = os.path.join(data_dir, "scans", "cb_none.jpg")
         cv2.imwrite(input_path, white_image)
         try:
-            result = _run_pipeline(input_path, "batch_cb_none", 0, default_opts, None)
+            _run_pipeline(input_path, "batch_cb_none", 0, default_opts, None)
         except TypeError:
             # Some implementations may not guard against None callback
             pass
