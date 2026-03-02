@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.1.8](https://github.com/sharkhunterr/satsu/-/compare/v0.1.7...v0.1.8) (2026-03-02)
+
+
+### Bug Fixes
+
+* use hardcoded 'satsu' for Docker Hub repo name instead of CI_PROJECT_NAME ([143cbba](https://github.com/sharkhunterr/satsu/-/commit/143cbba246d01f69f37dad33002fc0496176141f))
+
 ### [0.1.7](https://github.com/sharkhunterr/satsu/-/compare/v0.1.6...v0.1.7) (2026-03-02)
 
 
