@@ -134,7 +134,7 @@ class TestCreateBackend:
 
     def test_create_googledrive_backend(self):
         config = {
-            "type": "googledrive",
+            "type": "gdrive",
             "service_account": "/path/to/sa.json",
             "folder_id": "abc",
         }

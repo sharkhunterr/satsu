@@ -5,6 +5,7 @@ import json
 import asyncio
 import tempfile
 import pytest
+import pytest_asyncio
 import aiosqlite
 
 # Set test data dir before importing
@@ -12,7 +13,7 @@ os.environ["SATSU_DATA_DIR"] = tempfile.mkdtemp()
 
 from database import get_db, init_db, DB_PATH
 
-@pytest.fixture(autouse=True)
+@pytest_asyncio.fixture(autouse=True)
 async def fresh_db():
     """Create a fresh database for each test."""
     os.environ["SATSU_DATA_DIR"] = tempfile.mkdtemp()
