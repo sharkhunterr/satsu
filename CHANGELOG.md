@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.1.2](https://github.com/sharkhunterr/satsu/-/compare/v0.1.1...v0.1.2) (2026-03-02)
+
+
+### Bug Fixes
+
+* CI pipeline errors — ruff output format, missing test deps, unused vars ([ae1d492](https://github.com/sharkhunterr/satsu/-/commit/ae1d49212b2a685398b4b93d3d0d982b37e808f0))
+
 ### 0.1.1 (2026-03-02)
 
 
