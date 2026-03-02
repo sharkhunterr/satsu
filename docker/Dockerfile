@@ -25,7 +25,7 @@ LABEL org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.source="https://github.com/sharkhunterr/satsu"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgl1 libglib2.0-0 curl openssl && rm -rf /var/lib/apt/lists/*
+    libgl1 libglib2.0-0 curl openssl gosu && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -34,9 +34,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ ./
 COPY --from=frontend-build /app/backend/static ./static
 
-# Create data directories with correct ownership
-RUN mkdir -p /data/scans /data/processed /data/exports /data/certs && \
-    chown -R 1000:1000 /data
+# Create data directories (ownership set at runtime by entrypoint)
+RUN mkdir -p /data/scans /data/processed /data/exports /data/certs
 
 # Copy entrypoint
 COPY docker/entrypoint.sh /entrypoint.sh
@@ -49,12 +48,12 @@ ENV SATSU_PORT=8400 \
     SATSU_HTTPS=false \
     SATSU_SSL_CERT=/data/certs/cert.pem \
     SATSU_SSL_KEY=/data/certs/key.pem \
+    PUID=1000 \
+    PGID=1000 \
     TZ=UTC
 
 EXPOSE 8400
 VOLUME /data
-
-USER 1000:1000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD curl -sf http://localhost:${SATSU_PORT}/api/stats || curl -sf -k https://localhost:${SATSU_PORT}/api/stats || exit 1

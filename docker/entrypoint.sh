@@ -1,18 +1,24 @@
 #!/bin/sh
 # Satsu Docker entrypoint
-# Supports configurable port and optional HTTPS with auto-generated certificates
+# Runs as root to fix permissions, then drops to PUID:PGID via gosu
 
+PUID="${PUID:-1000}"
+PGID="${PGID:-1000}"
 PORT="${SATSU_PORT:-8400}"
+DATA_DIR="${SATSU_DATA_DIR:-/data}"
 
-# Build uvicorn command
-CMD="uvicorn main:app --host 0.0.0.0 --port ${PORT}"
+# ---- Create data directories and fix ownership (runs as root) ----
+echo "Satsu: Setting up data directories (PUID=${PUID}, PGID=${PGID})..."
+for dir in scans processed exports certs; do
+  mkdir -p "${DATA_DIR}/${dir}"
+done
+chown -R "${PUID}:${PGID}" "${DATA_DIR}"
 
-# HTTPS support
+# ---- HTTPS: generate self-signed certificate if needed (as root) ----
 if [ "${SATSU_HTTPS}" = "true" ]; then
-  SSL_CERT="${SATSU_SSL_CERT:-/data/certs/cert.pem}"
-  SSL_KEY="${SATSU_SSL_KEY:-/data/certs/key.pem}"
+  SSL_CERT="${SATSU_SSL_CERT:-${DATA_DIR}/certs/cert.pem}"
+  SSL_KEY="${SATSU_SSL_KEY:-${DATA_DIR}/certs/key.pem}"
 
-  # Auto-generate self-signed certificate if none provided
   if [ ! -f "$SSL_CERT" ] || [ ! -f "$SSL_KEY" ]; then
     echo "Satsu: No SSL certificates found, generating self-signed certificate..."
     mkdir -p "$(dirname "$SSL_CERT")" "$(dirname "$SSL_KEY")"
@@ -22,16 +28,23 @@ if [ "${SATSU_HTTPS}" = "true" ]; then
       -days 365 \
       -subj "/CN=satsu/O=Satsu Self-Signed"; then
       echo "Satsu: Self-signed certificate generated (valid 365 days)"
+      chown "${PUID}:${PGID}" "$SSL_CERT" "$SSL_KEY"
     else
       echo "Satsu: ERROR - Failed to generate certificate, falling back to HTTP"
-      exec $CMD
+      SATSU_HTTPS=false
     fi
   fi
+fi
 
+# ---- Build uvicorn command ----
+CMD="uvicorn main:app --host 0.0.0.0 --port ${PORT}"
+
+if [ "${SATSU_HTTPS}" = "true" ]; then
   echo "Satsu: HTTPS enabled on port ${PORT}"
   CMD="${CMD} --ssl-certfile=${SSL_CERT} --ssl-keyfile=${SSL_KEY}"
 else
   echo "Satsu: HTTP on port ${PORT}"
 fi
 
-exec $CMD
+# ---- Drop privileges and exec ----
+exec gosu "${PUID}:${PGID}" $CMD
