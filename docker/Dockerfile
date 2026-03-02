@@ -25,7 +25,7 @@ LABEL org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.source="https://github.com/sharkhunterr/satsu"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgl1-mesa-glx libglib2.0-0 curl && rm -rf /var/lib/apt/lists/*
+    libgl1 libglib2.0-0 curl && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
