@@ -45,3 +45,7 @@ coverage/
 # ESP32-CAM
 esp32cam/config.h
 .pio/
+
+# Excluded
+exemple/
+.certs/

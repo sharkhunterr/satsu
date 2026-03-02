@@ -4,9 +4,9 @@
 
 ---
 
-# v0.1.0
+# v0.2.0
 
-## Satsu v0.1.0 - Initial Release
+## Satsu v0.2.0 - Initial Release
 
 The first public release of Satsu, a self-hosted document scanning system that turns an ESP32-CAM module or any phone/tablet into a dedicated scanner.
 
