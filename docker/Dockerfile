@@ -34,9 +34,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ ./
 COPY --from=frontend-build /app/backend/static ./static
 
-# Create data and certs directories with correct ownership
-RUN mkdir -p /data/scans /data/processed /data/exports /certs && \
-    chown -R 1000:1000 /data /certs
+# Create data directories with correct ownership
+RUN mkdir -p /data/scans /data/processed /data/exports /data/certs && \
+    chown -R 1000:1000 /data
 
 # Copy entrypoint
 COPY docker/entrypoint.sh /entrypoint.sh
@@ -47,8 +47,8 @@ ENV SATSU_PORT=8400 \
     SATSU_LOG_LEVEL=INFO \
     SATSU_DATA_DIR=/data \
     SATSU_HTTPS=false \
-    SATSU_SSL_CERT=/certs/cert.pem \
-    SATSU_SSL_KEY=/certs/key.pem \
+    SATSU_SSL_CERT=/data/certs/cert.pem \
+    SATSU_SSL_KEY=/data/certs/key.pem \
     TZ=UTC
 
 EXPOSE 8400

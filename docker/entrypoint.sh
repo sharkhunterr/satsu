@@ -9,20 +9,18 @@ CMD="uvicorn main:app --host 0.0.0.0 --port ${PORT}"
 
 # HTTPS support
 if [ "${SATSU_HTTPS}" = "true" ]; then
-  SSL_CERT="${SATSU_SSL_CERT:-/certs/cert.pem}"
-  SSL_KEY="${SATSU_SSL_KEY:-/certs/key.pem}"
+  SSL_CERT="${SATSU_SSL_CERT:-/data/certs/cert.pem}"
+  SSL_KEY="${SATSU_SSL_KEY:-/data/certs/key.pem}"
 
   # Auto-generate self-signed certificate if none provided
   if [ ! -f "$SSL_CERT" ] || [ ! -f "$SSL_KEY" ]; then
     echo "Satsu: No SSL certificates found, generating self-signed certificate..."
     mkdir -p "$(dirname "$SSL_CERT")" "$(dirname "$SSL_KEY")"
-    openssl req -x509 -newkey rsa:2048 -nodes \
+    if openssl req -x509 -newkey rsa:2048 -nodes \
       -keyout "$SSL_KEY" \
       -out "$SSL_CERT" \
       -days 365 \
-      -subj "/CN=satsu/O=Satsu Self-Signed" \
-      2>/dev/null
-    if [ $? -eq 0 ]; then
+      -subj "/CN=satsu/O=Satsu Self-Signed"; then
       echo "Satsu: Self-signed certificate generated (valid 365 days)"
     else
       echo "Satsu: ERROR - Failed to generate certificate, falling back to HTTP"
