@@ -10,10 +10,15 @@ services:
     ports:
       - "8400:8400"
     environment:
+      - SATSU_PORT=8400            # Configurable port
       - SATSU_LOG_LEVEL=INFO
+      - SATSU_HTTPS=false          # Set to "true" for HTTPS
+      # - SATSU_SSL_CERT=/certs/cert.pem
+      # - SATSU_SSL_KEY=/certs/key.pem
       - TZ=Europe/Paris
     volumes:
       - satsu-data:/data
+      # - ./certs:/certs:ro        # Uncomment for HTTPS
     networks:
       - satsu-network
     restart: unless-stopped

@@ -38,10 +38,17 @@ COPY --from=frontend-build /app/frontend/dist ./static
 RUN mkdir -p /data/scans /data/processed /data/exports && \
     chown -R 1000:1000 /data
 
+# Copy entrypoint
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 # Environment defaults
 ENV SATSU_PORT=8400 \
     SATSU_LOG_LEVEL=INFO \
     SATSU_DATA_DIR=/data \
+    SATSU_HTTPS=false \
+    SATSU_SSL_CERT=/certs/cert.pem \
+    SATSU_SSL_KEY=/certs/key.pem \
     TZ=UTC
 
 EXPOSE 8400
@@ -50,6 +57,6 @@ VOLUME /data
 USER 1000:1000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD curl -f http://localhost:8400/api/stats || exit 1
+  CMD curl -sf http://localhost:${SATSU_PORT}/api/stats || curl -sf -k https://localhost:${SATSU_PORT}/api/stats || exit 1
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8400"]
+ENTRYPOINT ["/entrypoint.sh"]
