@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.1.9](https://github.com/sharkhunterr/satsu/-/compare/v0.1.8...v0.1.9) (2026-03-02)
+
+
+### Features
+
+* auto-generate self-signed SSL certificate when HTTPS enabled ([77692fd](https://github.com/sharkhunterr/satsu/-/commit/77692fd9bccec227b02b7a3e4b0fb13c6f717c8c))
+
 ### [0.1.8](https://github.com/sharkhunterr/satsu/-/compare/v0.1.7...v0.1.8) (2026-03-02)
 
 

@@ -1,6 +1,6 @@
 {
   "name": "satsu",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Satsu - Self-hosted document scanning system",
   "scripts": {
     "predev": "npm run kill",
