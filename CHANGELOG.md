@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.1.6](https://github.com/sharkhunterr/satsu/-/compare/v0.1.5...v0.1.6) (2026-03-02)
+
+
+### Bug Fixes
+
+* replace obsolete libgl1-mesa-glx with libgl1 in Dockerfile ([1cd4b6f](https://github.com/sharkhunterr/satsu/-/commit/1cd4b6f19b08b29261d18f87fe2f6ee934241fda))
+
 ### [0.1.5](https://github.com/sharkhunterr/satsu/-/compare/v0.1.4...v0.1.5) (2026-03-02)
 
 
