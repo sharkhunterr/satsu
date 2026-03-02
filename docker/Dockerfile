@@ -32,7 +32,7 @@ WORKDIR /app
 COPY backend/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ ./
-COPY --from=frontend-build /app/frontend/dist ./static
+COPY --from=frontend-build /app/backend/static ./static
 
 # Create data directories with correct ownership
 RUN mkdir -p /data/scans /data/processed /data/exports && \
