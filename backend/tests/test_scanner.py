@@ -589,8 +589,9 @@ class TestRunPipeline:
         callback = MagicMock()
         result = _run_pipeline(input_path, "batch_full", 0, default_opts, callback)
         assert result is not None
-        # The result should be a file path string
-        assert isinstance(result, str)
+        # The result should be a tuple (path, metadata, file_size)
+        assert isinstance(result, tuple)
+        assert isinstance(result[0], str)
 
     def test_pipeline_output_file_exists(self, data_dir, gradient_image, default_opts):
         """Pipeline output file should exist on disk."""
@@ -598,12 +599,13 @@ class TestRunPipeline:
         cv2.imwrite(input_path, gradient_image)
         callback = MagicMock()
         result = _run_pipeline(input_path, "batch_exists", 0, default_opts, callback)
-        if result and isinstance(result, str):
+        if result and isinstance(result, tuple):
+            output_path = result[0]
             # Check processed directory for output
             processed_dir = os.path.join(data_dir, "processed")
             if os.path.isdir(processed_dir):
                 files = os.listdir(processed_dir)
-                assert len(files) > 0 or os.path.exists(result)
+                assert len(files) > 0 or os.path.exists(output_path)
 
     def test_pipeline_with_nonexistent_file(self, data_dir, default_opts):
         """Pipeline with a nonexistent input file should handle gracefully."""
@@ -695,8 +697,9 @@ class TestDisabledStepsSkipped:
         cv2.imwrite(input_path, rectangle_on_black)
         callback = MagicMock()
         result = _run_pipeline(input_path, "batch_nocrop", 0, opts, callback)
-        if result and isinstance(result, str) and os.path.exists(result):
-            output_img = cv2.imread(result)
+        output_path = result[0] if isinstance(result, tuple) else result
+        if output_path and isinstance(output_path, str) and os.path.exists(output_path):
+            output_img = cv2.imread(output_path)
             if output_img is not None:
                 oh, ow = rectangle_on_black.shape[:2]
                 rh, rw = output_img.shape[:2]
@@ -785,15 +788,16 @@ class TestProcessPage:
             pass
 
     @pytest.mark.asyncio
-    async def test_process_page_returns_string(self, data_dir, gradient_image, default_opts):
-        """process_page should return a string path on success."""
+    async def test_process_page_returns_tuple(self, data_dir, gradient_image, default_opts):
+        """process_page should return a (path, metadata, file_size) tuple on success."""
         input_path = os.path.join(data_dir, "scans", "async_str.jpg")
         cv2.imwrite(input_path, gradient_image)
         callback = MagicMock()
         try:
             result = await process_page(input_path, "batch_str", 0, default_opts, callback)
             if result is not None:
-                assert isinstance(result, str)
+                assert isinstance(result, tuple)
+                assert isinstance(result[0], str)
         except Exception:
             pass
 

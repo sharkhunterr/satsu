@@ -9,12 +9,17 @@ import pytest
 
 os.environ["SATSU_DATA_DIR"] = tempfile.mkdtemp()
 
-from database import init_db
+from database import get_db, init_db
+from config import load_config
+from logger import AppLogger
+import main
 from main import app
 from fastapi.testclient import TestClient
 
-# Initialize DB before tests (lifespan doesn't run with TestClient)
+# Initialize DB + globals that lifespan would set (lifespan doesn't run with TestClient)
 asyncio.get_event_loop().run_until_complete(init_db())
+main.app_config = load_config()
+main.app_logger = AppLogger(get_db, main.manager.broadcast)
 
 client = TestClient(app)
 
