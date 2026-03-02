@@ -1,0 +1,21 @@
+# Changelog
+
+All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
+
+### 0.1.1 (2026-03-02)
+
+
+### Features
+
+* add branding assets (favicon, icons, banner) and README ([cba184c](https://github.com/sharkhunterr/satsu/-/commit/cba184cb4a4cdd3e7db8dd287084012c396d12db))
+* configurable port and HTTPS support in Docker image ([c4a8a55](https://github.com/sharkhunterr/satsu/-/commit/c4a8a5548b7fb793c662235248284d5d44e022c0))
+* implement full system — merged Home page, backend, firmware, frontend ([8f4a385](https://github.com/sharkhunterr/satsu/-/commit/8f4a38519e10191c5f6a805f6e71450599ccb4e7))
+* interactive crop modal, configurable processing profiles, color mode ([1b1ffa7](https://github.com/sharkhunterr/satsu/-/commit/1b1ffa7e02432cc7cad2b2d2d79483d243183d39))
+* per-profile storage, storage badges, device info, center-bias crop ([773acdf](https://github.com/sharkhunterr/satsu/-/commit/773acdf9230444f454a1d62795b36334c4f0cfde))
+* scanning station (kiosk mode), remote control, multi-page PDF merge ([7ea6f14](https://github.com/sharkhunterr/satsu/-/commit/7ea6f14557e5b73738d379e35b37182935bffde1))
+* station crop zone calibration, quick-access buttons on Devices page ([e92b7a9](https://github.com/sharkhunterr/satsu/-/commit/e92b7a948b4031c5599508b96e424bb9f875cfa5))
+
+
+### Bug Fixes
+
+* improve document detection for low-contrast and half-sheet photos ([396f9b8](https://github.com/sharkhunterr/satsu/-/commit/396f9b884149c0e53ba98681b42be2fabd607825))
