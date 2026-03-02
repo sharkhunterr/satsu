@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.1.11](https://github.com/sharkhunterr/satsu/-/compare/v0.1.10...v0.1.11) (2026-03-02)
+
+
+### Features
+
+* remove About page, fix Logs page display ([af48a78](https://github.com/sharkhunterr/satsu/-/commit/af48a78db5763c35bc53f177c34b8ee94ffab3a6))
+
 ### [0.1.10](https://github.com/sharkhunterr/satsu/-/compare/v0.1.9...v0.1.10) (2026-03-02)
 
 
