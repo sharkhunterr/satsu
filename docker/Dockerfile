@@ -25,7 +25,7 @@ LABEL org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.source="https://github.com/sharkhunterr/satsu"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgl1 libglib2.0-0 curl && rm -rf /var/lib/apt/lists/*
+    libgl1 libglib2.0-0 curl openssl && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -34,9 +34,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ ./
 COPY --from=frontend-build /app/backend/static ./static
 
-# Create data directories with correct ownership
-RUN mkdir -p /data/scans /data/processed /data/exports && \
-    chown -R 1000:1000 /data
+# Create data and certs directories with correct ownership
+RUN mkdir -p /data/scans /data/processed /data/exports /certs && \
+    chown -R 1000:1000 /data /certs
 
 # Copy entrypoint
 COPY docker/entrypoint.sh /entrypoint.sh

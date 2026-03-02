@@ -1,6 +1,6 @@
 #!/bin/sh
 # Satsu Docker entrypoint
-# Supports configurable port and optional HTTPS
+# Supports configurable port and optional HTTPS with auto-generated certificates
 
 PORT="${SATSU_PORT:-8400}"
 
@@ -12,15 +12,26 @@ if [ "${SATSU_HTTPS}" = "true" ]; then
   SSL_CERT="${SATSU_SSL_CERT:-/certs/cert.pem}"
   SSL_KEY="${SATSU_SSL_KEY:-/certs/key.pem}"
 
-  if [ -f "$SSL_CERT" ] && [ -f "$SSL_KEY" ]; then
-    echo "Satsu: HTTPS enabled on port ${PORT}"
-    CMD="${CMD} --ssl-certfile=${SSL_CERT} --ssl-keyfile=${SSL_KEY}"
-  else
-    echo "Satsu: WARNING - HTTPS requested but certificates not found:"
-    echo "  cert: ${SSL_CERT} ($([ -f "$SSL_CERT" ] && echo 'OK' || echo 'MISSING'))"
-    echo "  key:  ${SSL_KEY} ($([ -f "$SSL_KEY" ] && echo 'OK' || echo 'MISSING'))"
-    echo "Satsu: Falling back to HTTP on port ${PORT}"
+  # Auto-generate self-signed certificate if none provided
+  if [ ! -f "$SSL_CERT" ] || [ ! -f "$SSL_KEY" ]; then
+    echo "Satsu: No SSL certificates found, generating self-signed certificate..."
+    mkdir -p "$(dirname "$SSL_CERT")" "$(dirname "$SSL_KEY")"
+    openssl req -x509 -newkey rsa:2048 -nodes \
+      -keyout "$SSL_KEY" \
+      -out "$SSL_CERT" \
+      -days 365 \
+      -subj "/CN=satsu/O=Satsu Self-Signed" \
+      2>/dev/null
+    if [ $? -eq 0 ]; then
+      echo "Satsu: Self-signed certificate generated (valid 365 days)"
+    else
+      echo "Satsu: ERROR - Failed to generate certificate, falling back to HTTP"
+      exec $CMD
+    fi
   fi
+
+  echo "Satsu: HTTPS enabled on port ${PORT}"
+  CMD="${CMD} --ssl-certfile=${SSL_CERT} --ssl-keyfile=${SSL_KEY}"
 else
   echo "Satsu: HTTP on port ${PORT}"
 fi
